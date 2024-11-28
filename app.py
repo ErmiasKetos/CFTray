@@ -93,4 +93,12 @@ def main():
 
 if __name__ == "__main__":
     st.set_page_config(
-        page_title="
+        page_title="Reagent Tray Configurator",
+        page_icon="🧪",
+        layout="wide",
+        initial_sidebar_state="auto",
+        menu_items={
+            'About': "# Reagent Tray Configuration Optimizer\nOptimizes reagent placement for maximum tray life."
+        }
+    )
+    main()
