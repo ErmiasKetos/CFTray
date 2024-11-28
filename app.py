@@ -74,15 +74,20 @@ def main():
             
             for exp_num, result in config["results"].items():
                 with st.expander(f"{result['name']} (#{exp_num}) - {result['total_tests']} total tests"):
-                    for set_idx, set_info in enumerate(result["sets"], 1):
-                        st.markdown(f"**Set {set_idx}:**")
-                        st.markdown(f"Tests per set: {set_info['tests_per_set']}")
+                    for i, set_info in enumerate(result["sets"], 1):
+                        if i == 1:
+                            st.markdown("Primary Set:")
+                        else:
+                            st.markdown(f"Additional Set {i-1}:")
+                            
                         for placement in set_info["placements"]:
                             st.markdown(
                                 f"- {placement['reagent_code']} "
                                 f"(LOC-{placement['location'] + 1}): "
                                 f"{placement['tests']} tests possible"
                             )
+                        st.markdown(f"Tests from this set: {set_info['tests_per_set']}")
+                    
                     st.markdown(f"**Total tests possible: {result['total_tests']}**")
             
         except ValueError:
