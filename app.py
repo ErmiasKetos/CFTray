@@ -48,4 +48,32 @@ def main():
                         if i == 0:
                             st.markdown("Primary Set:")
                         else:
-                            st.markdown(f"Additional Set {i
+                            st.markdown(f"Additional Set {i                        }:")
+
+                        for placement in set_info["placements"]:
+                            st.markdown(
+                                f"- {placement['reagent_code']} "
+                                f"(LOC-{placement['location'] + 1}): "
+                                f"{placement['tests']} tests possible"
+                            )
+                        st.markdown(f"Tests from this set: {set_info['tests_per_set']}")
+
+            st.metric("Tray Life (Tests)", tray_life)
+
+        except ValueError as e:
+            st.error(str(e))
+        except Exception as e:
+            st.error(f"An error occurred: {str(e)}")
+
+if __name__ == "__main__":
+    st.set_page_config(
+        page_title="Reagent Tray Configurator",
+        page_icon="🧪",
+        layout="wide",
+        initial_sidebar_state="auto",
+        menu_items={
+            'About': "# Reagent Tray Configuration Optimizer\nOptimizes reagent placement for maximum tray life."
+        }
+    )
+    main()
+
