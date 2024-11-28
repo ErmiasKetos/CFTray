@@ -37,6 +37,7 @@ class ReagentOptimizer:
 
         self.MAX_LOCATIONS = 16
 
+
     def calculate_tests(self, volume_ul, capacity_ml):
         return int((capacity_ml * 1000) / volume_ul)
 
@@ -70,35 +71,30 @@ class ReagentOptimizer:
         sorted_experiments = sorted(
             selected_experiments,
             key=lambda x: (
-                len(self.experiment_data[x]["reagents"]),
-                max(r["vol"] for r in self.experiment_data[x]["reagents"])
+                max(r["vol"] for r in self.experiment_data[x]["reagents"]),
+                len(self.experiment_data[x]["reagents"])
             ),
             reverse=True
         )
 
-        # First pass: Place high-volume reagents in 270mL locations
-        high_vol_placed = set()
+        # Place reagents
         for exp in sorted_experiments:
-            exp_data = self.experiment_data[exp]
-            if any(r["vol"] > 800 for r in exp_data["reagents"]):
-                available_270 = [loc for loc in range(4) if loc in config["available_locations"]]
-                if len(available_270) >= len(exp_data["reagents"]):
-                    self._place_reagent_set(exp, available_270[:len(exp_data["reagents"])], config)
-                    high_vol_placed.add(exp)
-
-        # Second pass: Place remaining experiments
-        remaining_experiments = [exp for exp in sorted_experiments if exp not in high_vol_placed]
-        for exp in remaining_experiments:
             exp_data = self.experiment_data[exp]
             num_reagents = len(exp_data["reagents"])
             
+            # Try to place high-volume reagents in 270mL locations first
+            if any(r["vol"] > 800 for r in exp_data["reagents"]):
+                available_270 = [loc for loc in range(4) if loc in config["available_locations"]]
+                if len(available_270) >= num_reagents:
+                    self._place_reagent_set(exp, available_270[:num_reagents], config)
+                    continue
+
             # Try to find consecutive locations
             available_locs = sorted(config["available_locations"])
             placed = False
             
             for i in range(len(available_locs) - num_reagents + 1):
                 locations = available_locs[i:i + num_reagents]
-                # Check if all locations have sufficient capacity
                 if all(self.get_location_capacity(loc) >= min(r["vol"] for r in exp_data["reagents"]) / 5 
                       for loc in locations):
                     self._place_reagent_set(exp, locations, config)
@@ -106,8 +102,9 @@ class ReagentOptimizer:
                     break
             
             if not placed:
-                # If we couldn't place consecutively, try non-consecutive placement
-                available = sorted(config["available_locations"])
+                # If we couldn't place consecutively, use non-consecutive placement
+                available = sorted(config["available_locations"], 
+                                   key=lambda x: self.get_location_capacity(x), reverse=True)
                 if len(available) >= num_reagents:
                     self._place_reagent_set(exp, available[:num_reagents], config)
                 else:
@@ -127,7 +124,10 @@ class ReagentOptimizer:
         exp = self.experiment_data[exp_num]
         placements = []
 
-        for i, reagent in enumerate(exp["reagents"]):
+        # Sort reagents by volume, descending
+        sorted_reagents = sorted(exp["reagents"], key=lambda r: r["vol"], reverse=True)
+
+        for i, reagent in enumerate(sorted_reagents):
             loc = locations[i]
             capacity = self.get_location_capacity(loc)
             tests = self.calculate_tests(reagent["vol"], capacity)
