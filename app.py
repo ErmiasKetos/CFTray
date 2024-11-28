@@ -77,7 +77,7 @@ def create_tray_visualization(config):
             name=f"LOC-{i+1}",
             text=f"LOC-{i+1}<br>{loc['reagent_code'] if loc else 'Empty'}<br>Tests: {loc['tests_possible'] if loc else 'N/A'}<br>Exp: #{loc['experiment'] if loc else 'N/A'}",
             hoverinfo="text",
-            customdata=[i]
+            customdata=[i]  # Useful for interactive callbacks
         ))
 
         # Add text annotation
@@ -101,10 +101,11 @@ def create_tray_visualization(config):
         yaxis=dict(showgrid=False, zeroline=False, showticklabels=False),
         plot_bgcolor="rgba(0,0,0,0)",
         margin=dict(l=20, r=20, t=40, b=20),
-        dragmode='select'
+        dragmode='select'  # Use 'select' for interaction
     )
 
     return fig
+
 
 def update_config_after_manual_change(config, source, target):
     source_loc = config["tray_locations"][source]
@@ -118,6 +119,7 @@ def update_config_after_manual_change(config, source, target):
 
     return config
 
+
 def display_results():
     config = st.session_state.config
     selected_experiments = st.session_state.selected_experiments
@@ -127,58 +129,17 @@ def display_results():
     with col1:
         st.subheader("Tray Configuration")
         fig = create_tray_visualization(config)
-        
-        # Add JavaScript callback for drag and drop
-        fig.update_layout(
-            dragmode='draggable',
-            newshape=dict(line_color='cyan'),
-            updatemenus=[
-                dict(
-                    type='buttons',
-                    showactive=False,
-                    buttons=[
-                        dict(
-                            label='Recalculate',
-                            method='relayout',
-                            args=[{'shapes': []}],
-                            clickargs=[{'data': [{'customdata': [[0]]}]}]
-                        )
-                    ]
-                )
-            ]
-        )
-        
         config_plot = st.plotly_chart(fig, use_container_width=True)
 
-        # Add JavaScript to handle drag and drop events
-        st.markdown("""
-        <script>
-        const graphDiv = document.querySelector('.js-plotly-plot');
-        graphDiv.on('plotly_restyle', function(data) {
-            if (data[0].hasOwnProperty('customdata')) {
-                const source = data[0].customdata[0][0];
-                const target = data[1].customdata[0][0];
-                
-                fetch('/update_config', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                    },
-                    body: JSON.stringify({source: source, target: target}),
-                })
-                .then(response => response.json())
-                .then(data => {
-                    if (data.success) {
-                        Streamlit.setComponentValue({
-                            config: data.config,
-                            selected_experiments: data.selected_experiments
-                        });
-                    }
-                });
-            }
-        });
-        </script>
-        """, unsafe_allow_html=True)
+        # Button to update configuration after manual changes
+        if st.button("Recalculate After Manual Configuration"):
+            try:
+                optimizer = ReagentOptimizer()
+                updated_config = optimizer.recalculate_after_manual_update(config)
+                st.session_state.config = updated_config
+                st.success("Configuration updated successfully!")
+            except Exception as e:
+                st.error(f"Error updating configuration: {str(e)}")
 
     with col2:
         st.subheader("Results Summary")
@@ -210,6 +171,7 @@ def display_results():
                 st.dataframe(set_df, use_container_width=True)
                 st.markdown(f"**Tests from this set:** {set_info['tests_per_set']}")
                 st.markdown("---")
+
 
 def main():
     st.title("🧪 Reagent Tray Configurator")
