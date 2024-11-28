@@ -2,12 +2,11 @@ import streamlit as st
 import pandas as pd
 import plotly.graph_objects as go
 from reagent_optimizer import ReagentOptimizer
-import json
 import uuid
 
 # Set page config
 st.set_page_config(
-    page_title="KCTray Configurator",
+    page_title="Reagent Tray Configurator",
     page_icon="🧪",
     layout="wide",
     initial_sidebar_state="expanded",
@@ -37,11 +36,6 @@ st.markdown("""
     }
     .css-1d391kg {
         padding-top: 3rem;
-    }
-    .drag-instruction {
-        font-style: italic;
-        color: #666;
-        margin-bottom: 10px;
     }
 </style>
 """, unsafe_allow_html=True)
@@ -82,8 +76,7 @@ def create_tray_visualization(config):
             mode="lines",
             name=f"LOC-{i+1}",
             text=f"LOC-{i+1}<br>{loc['reagent_code'] if loc else 'Empty'}<br>Tests: {loc['tests_possible'] if loc else 'N/A'}<br>Exp: #{loc['experiment'] if loc else 'N/A'}",
-            hoverinfo="text",
-            customdata=[i]
+            hoverinfo="text"
         ))
 
         # Add text annotation
@@ -99,30 +92,17 @@ def create_tray_visualization(config):
         )
 
     fig.update_layout(
-        title="Tray Configuration (Drag and Drop to Modify)",
+        title="Tray Configuration",
         showlegend=False,
         height=600,
         width=800,
         xaxis=dict(showgrid=False, zeroline=False, showticklabels=False),
         yaxis=dict(showgrid=False, zeroline=False, showticklabels=False),
         plot_bgcolor="rgba(0,0,0,0)",
-        margin=dict(l=20, r=20, t=40, b=20),
-        dragmode=False
+        margin=dict(l=20, r=20, t=40, b=20)
     )
 
     return fig
-
-def update_config_after_manual_change(config, source, target):
-    source_loc = config["tray_locations"][source]
-    target_loc = config["tray_locations"][target]
-    
-    config["tray_locations"][source], config["tray_locations"][target] = target_loc, source_loc
-
-    # Recalculate total tests and update sets
-    optimizer = ReagentOptimizer()
-    optimizer._recalculate_total_tests(config)
-
-    return config
 
 def display_results():
     config = st.session_state.config
@@ -132,55 +112,12 @@ def display_results():
 
     with col1:
         st.subheader("Tray Configuration")
-        st.markdown('<p class="drag-instruction">Click and drag to swap reagent locations</p>', unsafe_allow_html=True)
         fig = create_tray_visualization(config)
 
         # Generate a unique key for the Plotly chart
         unique_key = f"tray_configuration_plot_{uuid.uuid4().hex}"
 
-        config_plot = st.plotly_chart(fig, use_container_width=True, key=unique_key)
-
-        # Add JavaScript to handle drag and drop events
-        st.markdown("""
-        <script>
-        const graphDiv = document.querySelector('.js-plotly-plot');
-        let isDragging = false;
-        let dragStartIndex = -1;
-
-        graphDiv.on('plotly_click', function(data) {
-            const clickedIndex = data.points[0].customdata[0];
-            if (!isDragging) {
-                isDragging = true;
-                dragStartIndex = clickedIndex;
-            } else {
-                isDragging = false;
-                const dragEndIndex = clickedIndex;
-                if (dragStartIndex !== dragEndIndex) {
-                    updateConfiguration(dragStartIndex, dragEndIndex);
-                }
-            }
-        });
-
-        function updateConfiguration(source, target) {
-            fetch('/update_config', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({source: source, target: target}),
-            })
-            .then(response => response.json())
-            .then(data => {
-                if (data.success) {
-                    Streamlit.setComponentValue({
-                        config: data.config,
-                        selected_experiments: data.selected_experiments
-                    });
-                }
-            });
-        }
-        </script>
-        """, unsafe_allow_html=True)
+        st.plotly_chart(fig, use_container_width=True, key=unique_key)
 
     with col2:
         st.subheader("Results Summary")
@@ -224,7 +161,7 @@ def main():
         reset_app()
         st.session_state["reset_trigger"] = False  # Clear the trigger
 
-    st.title("🧪 KFTray Configurator")
+    st.title("🧪 Reagent Tray Configurator")
     
     optimizer = ReagentOptimizer()
     experiments = optimizer.get_available_experiments()
@@ -274,9 +211,8 @@ def main():
     1. Select experiments using checkboxes or enter numbers manually
     2. Click 'Optimize Configuration'
     3. View the tray visualization and results summary
-    4. Click and drag to swap reagent locations
-    5. Expand detailed results for each experiment
-    6. Click 'Reset All' to start fresh
+    4. Expand detailed results for each experiment
+    5. Click 'Reset All' to start fresh
     """)
 
 if __name__ == "__main__":
