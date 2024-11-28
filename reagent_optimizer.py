@@ -19,186 +19,103 @@ class ReagentOptimizer:
             16: {"name": "Iron (Dissolved)", "reagents": [{"code": "KR16E1", "vol": 1000}, {"code": "KR16E2", "vol": 1000}, {"code": "KR16E3", "vol": 1000}, {"code": "KR16E4", "vol": 1000}]}
         }
 
-    def calculate_tests(self, volume_ul, capacity_ml):
-        return int((capacity_ml * 1000) / volume_ul)
+    def calculate_tests(self, reagent_volume, chamber_capacity):
+        """Calculate number of tests possible for given volume and capacity"""
+        return int((chamber_capacity * 1000) / reagent_volume)
 
-    def calculate_total_volume_per_test(self, experiment):
-        return sum(r["vol"] for r in experiment["reagents"])
+    def collect_all_reagents(self, experiments):
+        """Collect all reagents from selected experiments with their requirements"""
+        all_reagents = []
+        for exp_num in experiments:
+            experiment = self.experiment_data[exp_num]
+            for reagent in experiment["reagents"]:
+                all_reagents.append({
+                    "experiment": exp_num,
+                    "exp_name": experiment["name"],
+                    "code": reagent["code"],
+                    "volume": reagent["vol"],
+                    "tests_270": self.calculate_tests(reagent["vol"], 270),
+                    "tests_140": self.calculate_tests(reagent["vol"], 140)
+                })
+        return all_reagents
 
-    def get_available_locations(self, used_locations):
-        """Get available locations sorted by capacity (270mL first, then 140mL)"""
-        all_locations = set(range(16))
-        available = sorted(list(all_locations - set(used_locations)))
-        return {
-            '270': [loc for loc in available if loc < 4],
-            '140': [loc for loc in available if loc >= 4]
-        }
+    def calculate_reagent_distribution(self, reagent, target_tests, available_locations):
+        """Calculate optimal distribution of a reagent across locations to achieve target tests"""
+        locations = []
+        total_tests = 0
+        remaining_locs = available_locations.copy()
+
+        # Try to use 270mL locations first
+        large_locs = [loc for loc in remaining_locs if loc < 4]
+        while total_tests < target_tests and large_locs:
+            loc = large_locs.pop(0)
+            tests = self.calculate_tests(reagent["volume"], 270)
+            locations.append({"location": loc, "tests": tests, "capacity": 270})
+            total_tests += tests
+            remaining_locs.remove(loc)
+
+        # Then use 140mL locations if needed
+        small_locs = [loc for loc in remaining_locs if loc >= 4]
+        while total_tests < target_tests and small_locs:
+            loc = small_locs.pop(0)
+            tests = self.calculate_tests(reagent["volume"], 140)
+            locations.append({"location": loc, "tests": tests, "capacity": 140})
+            total_tests += tests
+            remaining_locs.remove(loc)
+
+        return locations, remaining_locs
 
     def optimize_tray_configuration(self, selected_experiments):
         tray_locations = [None] * 16
         results = {}
-        used_locations = set()
+        available_locations = set(range(16))
 
-        # Sort experiments by total volume and number of reagents (descending)
-        sorted_experiments = sorted(
-            selected_experiments,
-            key=lambda x: (
-                self.calculate_total_volume_per_test(self.experiment_data[x]),
-                len(self.experiment_data[x]["reagents"])
-            ),
-            reverse=True
-        )
-
-        for exp_num in sorted_experiments:
+        # First, handle experiments with highest volume requirements
+        for exp_num in sorted(selected_experiments, 
+                            key=lambda x: sum(r["vol"] for r in self.experiment_data[x]["reagents"]),
+                            reverse=True):
             experiment = self.experiment_data[exp_num]
-            available_locs = self.get_available_locations(used_locations)
-            result = self.optimize_single_experiment(
-                exp_num, experiment, available_locs, tray_locations, used_locations
-            )
-            results[exp_num] = result
+            exp_result = {"name": experiment["name"], "reagent_placements": [], "total_tests": 0}
+
+            # Calculate maximum possible tests based on available locations
+            max_possible = float('inf')
+            for reagent in experiment["reagents"]:
+                tests_possible = 0
+                for loc in available_locations:
+                    capacity = 270 if loc < 4 else 140
+                    tests_possible += self.calculate_tests(reagent["vol"], capacity)
+                max_possible = min(max_possible, tests_possible)
+
+            # Place each reagent to achieve the target tests
+            for reagent in experiment["reagents"]:
+                placements, available_locations = self.calculate_reagent_distribution(
+                    {"code": reagent["code"], "volume": reagent["vol"]},
+                    max_possible,
+                    available_locations
+                )
+
+                for place in placements:
+                    tray_locations[place["location"]] = {
+                        "reagent_code": reagent["code"],
+                        "experiment": exp_num,
+                        "tests_possible": place["tests"],
+                        "volume_per_test": reagent["vol"],
+                        "capacity": place["capacity"]
+                    }
+
+                exp_result["reagent_placements"].append({
+                    "reagent_code": reagent["code"],
+                    "placements": placements,
+                    "total_tests": sum(p["tests"] for p in placements)
+                })
+
+            exp_result["total_tests"] = min(rp["total_tests"] for rp in exp_result["reagent_placements"])
+            results[exp_num] = exp_result
 
         return {
             "tray_locations": tray_locations,
             "results": results
         }
-
-    def optimize_single_experiment(self, exp_num, experiment, available_locs, tray_locations, used_locations):
-        result = {
-            "name": experiment["name"],
-            "sets": [],
-            "total_tests": 0
-        }
-
-        num_reagents = len(experiment["reagents"])
-        remaining_270 = available_locs['270']
-        remaining_140 = available_locs['140']
-
-        # Try to place first set in 270mL locations if possible and if high-volume experiment
-        if len(remaining_270) >= num_reagents and self.calculate_total_volume_per_test(experiment) >= 3000:
-            set_locations = remaining_270[:num_reagents]
-            set_info = self.place_reagent_set(
-                exp_num, experiment, set_locations, 270,
-                tray_locations, used_locations, set_number=1
-            )
-            result["sets"].append(set_info)
-            result["total_tests"] += set_info["tests_per_set"]
-
-        # Place additional sets in 140mL locations while possible
-        current_set = len(result["sets"]) + 1
-        while len(remaining_140) >= num_reagents:
-            set_locations = remaining_140[:num_reagents]
-            set_info = self.place_reagent_set(
-                exp_num, experiment, set_locations, 140,
-                tray_locations, used_locations, set_number=current_set
-            )
-            result["sets"].append(set_info)
-            result["total_tests"] += set_info["tests_per_set"]
-            current_set += 1
-            remaining_140 = [loc for loc in remaining_140 if loc not in set_locations]
-
-        # For experiments like Copper that need multiple locations per reagent
-        if not result["sets"] and len(experiment["reagents"]) == 2:
-            result = self.optimize_two_reagent_experiment(
-                exp_num, experiment, available_locs,
-                tray_locations, used_locations
-            )
-
-        return result
-
-    def place_reagent_set(self, exp_num, experiment, locations, capacity, tray_locations, used_locations, set_number):
-        set_info = {
-            "set_number": set_number,
-            "locations": locations,
-            "capacity": capacity,
-            "placements": [],
-            "tests_per_set": float('inf')
-        }
-
-        for i, reagent in enumerate(experiment["reagents"]):
-            location = locations[i]
-            tests = self.calculate_tests(reagent["vol"], capacity)
-            
-            tray_locations[location] = {
-                "reagent_code": reagent["code"],
-                "experiment": exp_num,
-                "tests_possible": tests,
-                "volume_per_test": reagent["vol"],
-                "capacity": capacity,
-                "set_number": set_number
-            }
-            
-            used_locations.add(location)
-            set_info["placements"].append({
-                "location": location,
-                "reagent_code": reagent["code"],
-                "tests": tests
-            })
-            set_info["tests_per_set"] = min(set_info["tests_per_set"], tests)
-
-        return set_info
-
-    def optimize_two_reagent_experiment(self, exp_num, experiment, available_locs, tray_locations, used_locations):
-        result = {
-            "name": experiment["name"],
-            "sets": [],
-            "total_tests": 0
-        }
-
-        # Calculate how many locations needed for each reagent
-        reagent1, reagent2 = experiment["reagents"]
-        available_140 = available_locs['140']
-        
-        if len(available_140) >= 4:  # Need at least 4 locations
-            # Use last location for reagent2 (like KR1S)
-            r2_location = available_140[-1]
-            r2_tests = self.calculate_tests(reagent2["vol"], 140)
-            
-            # Use remaining locations for reagent1 (like KR1E)
-            r1_locations = available_140[:-1][:3]  # Take up to 3 locations
-            r1_tests_per_loc = self.calculate_tests(reagent1["vol"], 140)
-            r1_total_tests = r1_tests_per_loc * len(r1_locations)
-            
-            # Place reagents
-            for loc in r1_locations:
-                tray_locations[loc] = {
-                    "reagent_code": reagent1["code"],
-                    "experiment": exp_num,
-                    "tests_possible": r1_tests_per_loc,
-                    "volume_per_test": reagent1["vol"],
-                    "capacity": 140,
-                    "set_number": 1
-                }
-                used_locations.add(loc)
-
-            tray_locations[r2_location] = {
-                "reagent_code": reagent2["code"],
-                "experiment": exp_num,
-                "tests_possible": r2_tests,
-                "volume_per_test": reagent2["vol"],
-                "capacity": 140,
-                "set_number": 1
-            }
-            used_locations.add(r2_location)
-
-            result["sets"].append({
-                "set_number": 1,
-                "tests_per_set": min(r1_total_tests, r2_tests),
-                "placements": [
-                    *[{
-                        "location": loc,
-                        "reagent_code": reagent1["code"],
-                        "tests": r1_tests_per_loc
-                    } for loc in r1_locations],
-                    {
-                        "location": r2_location,
-                        "reagent_code": reagent2["code"],
-                        "tests": r2_tests
-                    }
-                ]
-            })
-            result["total_tests"] = min(r1_total_tests, r2_tests)
-
-        return result
 
     def get_available_experiments(self):
         return [{"id": id_, "name": exp["name"]} 
