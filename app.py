@@ -210,12 +210,16 @@ def display_results():
 
 def reset_app():
     """Clears all session state variables to reset the app."""
-    for key in st.session_state.keys():
-        del st.session_state[key]  # Remove each session state key
-
+    for key in list(st.session_state.keys()):  # Convert to list to avoid runtime error
+        del st.session_state[key]
 
 
 def main():
+    # Clear session state if reset is triggered
+    if "reset_trigger" in st.session_state and st.session_state["reset_trigger"]:
+        reset_app()
+        st.session_state["reset_trigger"] = False  # Clear the trigger
+
     st.title("🧪 Reagent Tray Configurator")
     
     optimizer = ReagentOptimizer()
@@ -224,7 +228,8 @@ def main():
     # Reset Button
     if st.sidebar.button("Reset All", key="reset_button"):
         reset_app()
-        st.experimental_rerun()  # Reload the app from scratch
+        st.session_state["reset_trigger"] = True  # Set a trigger for clearing everything
+
 
     st.sidebar.header("Available Experiments")
     selected_experiments = []
