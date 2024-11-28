@@ -3,21 +3,6 @@ import pandas as pd
 import plotly.graph_objects as go
 from reagent_optimizer import ReagentOptimizer
 import json
-import threading
-from http.server import HTTPServer
-from api.update_config import handler
-
-def run_server(port=8000):
-    server_address = ('', port)
-    httpd = HTTPServer(server_address, handler)
-    httpd.app = st
-    print(f"Starting server on port {port}")
-    httpd.serve_forever()
-
-# Start the server in a separate thread
-threading.Thread(target=run_server, daemon=True).start()
-
-
 
 # Set page config
 st.set_page_config(
@@ -143,7 +128,8 @@ def display_results():
         st.subheader("Tray Configuration")
         fig = create_tray_visualization(config)
         
-        config_plot = st.plotly_chart(fig, use_container_width=True)
+        # Add a unique key to the plotly_chart element
+        config_plot = st.plotly_chart(fig, use_container_width=True, key="tray_configuration")
 
         # Add JavaScript to handle drag and drop events
         st.markdown("""
