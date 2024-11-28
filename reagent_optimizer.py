@@ -83,6 +83,9 @@ class ReagentOptimizer:
         # Second round: Fill empty locations and optimize for total tests
         self._optimize_empty_locations(sorted_experiments, config)
 
+        # Recalculate total tests based on complete sets
+        self._recalculate_total_tests(config)
+
         return config
 
     def _place_experiment_reagents(self, exp, config):
@@ -167,8 +170,6 @@ class ReagentOptimizer:
             }],
             "tests_per_set": tests
         })
-        
-        config["results"][exp_num]["total_tests"] += tests
 
     def _place_reagent_set(self, exp_num, locations, config):
         exp = self.experiment_data[exp_num]
@@ -212,9 +213,31 @@ class ReagentOptimizer:
             "placements": placements,
             "tests_per_set": set_tests
         })
-        config["results"][exp_num]["total_tests"] += set_tests
+
+    def _recalculate_total_tests(self, config):
+        for exp_num, result in config["results"].items():
+            exp_data = self.experiment_data[exp_num]
+            num_reagents = len(exp_data["reagents"])
+            
+            # Group placements by set
+            placement_sets = []
+            for set_info in result["sets"]:
+                if len(set_info["placements"]) == num_reagents:
+                    placement_sets.append(set_info["placements"])
+                else:
+                    # Handle partial sets
+                    for placement in set_info["placements"]:
+                        placement_sets.append([placement])
+            
+            # Calculate total tests based on complete sets
+            total_tests = 0
+            for placements in placement_sets:
+                if len(placements) == num_reagents:
+                    set_tests = min(p["tests"] for p in placements)
+                    total_tests += set_tests
+            
+            result["total_tests"] = total_tests
 
     def get_available_experiments(self):
         return [{"id": id_, "name": exp["name"]} 
                 for id_, exp in self.experiment_data.items()]
-
