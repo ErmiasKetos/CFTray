@@ -205,11 +205,17 @@ def display_results():
                 st.markdown("---")
 
 
+
 def main():
     st.title("🧪 Reagent Tray Configurator")
     
     optimizer = ReagentOptimizer()
     experiments = optimizer.get_available_experiments()
+
+    # Reset Button
+    if st.sidebar.button("Reset All", key="reset_button"):
+        reset_app()
+        st.experimental_rerun()
 
     st.sidebar.header("Available Experiments")
     selected_experiments = []
@@ -253,7 +259,9 @@ def main():
     3. View the tray visualization and results summary
     4. Click and drag to swap reagent locations
     5. Expand detailed results for each experiment
+    6. Click 'Reset All' to start fresh
     """)
+
 
 if __name__ == "__main__":
     main()
