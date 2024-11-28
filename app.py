@@ -2,10 +2,11 @@ import streamlit as st
 import pandas as pd
 import plotly.graph_objects as go
 from reagent_optimizer import ReagentOptimizer
+import json
 
 # Set page config
 st.set_page_config(
-    page_title="KCTray Configurator",
+    page_title="Reagent Tray Configurator",
     page_icon="🧪",
     layout="wide",
     initial_sidebar_state="expanded",
@@ -75,7 +76,9 @@ def create_tray_visualization(config):
             mode="lines",
             name=f"LOC-{i+1}",
             text=f"LOC-{i+1}<br>{loc['reagent_code'] if loc else 'Empty'}<br>Tests: {loc['tests_possible'] if loc else 'N/A'}<br>Exp: #{loc['experiment'] if loc else 'N/A'}",
-            hoverinfo="none"
+            hoverinfo="none",
+            customdata=[i],
+            dragmode='draggable'
         ))
 
         # Add text annotation
@@ -84,24 +87,37 @@ def create_tray_visualization(config):
             y=(row + row + 1) / 2,
             text=f"LOC-{i+1}<br>{loc['reagent_code'] if loc else 'Empty'}<br>Tests: {loc['tests_possible'] if loc else 'N/A'}<br>Exp: #{loc['experiment'] if loc else 'N/A'}",
             showarrow=False,
-            font=dict(color="black", size=14),
+            font=dict(color="black", size=8),
             align="center",
             xanchor="center",
             yanchor="middle"
         )
 
     fig.update_layout(
-        title="Tray Configuration",
+        title="Tray Configuration (Drag and Drop to Modify)",
         showlegend=False,
         height=600,
         width=800,
         xaxis=dict(showgrid=False, zeroline=False, showticklabels=False),
         yaxis=dict(showgrid=False, zeroline=False, showticklabels=False),
         plot_bgcolor="rgba(0,0,0,0)",
-        margin=dict(l=20, r=20, t=40, b=20)
+        margin=dict(l=20, r=20, t=40, b=20),
+        dragmode='draggable'
     )
 
     return fig
+
+def update_config_after_manual_change(config, source, target):
+    source_loc = config["tray_locations"][source]
+    target_loc = config["tray_locations"][target]
+    
+    config["tray_locations"][source], config["tray_locations"][target] = target_loc, source_loc
+
+    # Recalculate total tests and update sets
+    optimizer = ReagentOptimizer()
+    optimizer._recalculate_total_tests(config)
+
+    return config
 
 def main():
     st.title("🧪 Reagent Tray Configurator")
@@ -130,48 +146,18 @@ def main():
                 with st.spinner("Optimizing tray configuration..."):
                     config = optimizer.optimize_tray_configuration(selected_experiments)
 
-                col1, col2 = st.columns([3, 2])
+                st.session_state.config = config
+                st.session_state.selected_experiments = selected_experiments
 
-                with col1:
-                    st.subheader("Tray Configuration")
-                    fig = create_tray_visualization(config)
-                    st.plotly_chart(fig, use_container_width=True)
-
-                with col2:
-                    st.subheader("Results Summary")
-                    tray_life = min(result["total_tests"] for result in config["results"].values())
-                    st.metric("Tray Life (Tests)", tray_life)
-
-                    results_df = pd.DataFrame([
-                        {
-                            "Experiment": f"{result['name']} (#{exp_num})",
-                            "Total Tests": result['total_tests']
-                        }
-                        for exp_num, result in config["results"].items()
-                    ])
-                    st.dataframe(results_df, use_container_width=True)
-
-                st.subheader("Detailed Results")
-                for exp_num, result in config["results"].items():
-                    with st.expander(f"{result['name']} (#{exp_num}) - {result['total_tests']} total tests"):
-                        for i, set_info in enumerate(result["sets"]):
-                            st.markdown(f"**{'Primary' if i == 0 else 'Additional'} Set {i+1}:**")
-                            set_df = pd.DataFrame([
-                                {
-                                    "Reagent": placement["reagent_code"],
-                                    "Location": f"LOC-{placement['location'] + 1}",
-                                    "Tests Possible": placement["tests"]
-                                }
-                                for placement in set_info["placements"]
-                            ])
-                            st.dataframe(set_df, use_container_width=True)
-                            st.markdown(f"**Tests from this set:** {set_info['tests_per_set']}")
-                            st.markdown("---")
+                display_results()
 
             except ValueError as e:
                 st.error(str(e))
             except Exception as e:
                 st.error(f"An error occurred: {str(e)}")
+
+    if 'config' in st.session_state:
+        display_results()
 
     st.sidebar.markdown("---")
     st.sidebar.markdown("### How to use")
@@ -179,8 +165,102 @@ def main():
     1. Select experiments using checkboxes or enter numbers manually
     2. Click 'Optimize Configuration'
     3. View the tray visualization and results summary
-    4. Expand detailed results for each experiment
+    4. Drag and drop boxes to manually adjust the configuration
+    5. Expand detailed results for each experiment
     """)
+
+def display_results():
+    config = st.session_state.config
+    selected_experiments = st.session_state.selected_experiments
+
+    col1, col2 = st.columns([3, 2])
+
+    with col1:
+        st.subheader("Tray Configuration")
+        fig = create_tray_visualization(config)
+        
+        # Add JavaScript callback for drag and drop
+        fig.update_layout(
+            dragmode='draggable',
+            newshape=dict(line_color='cyan'),
+            updatemenus=[
+                dict(
+                    type='buttons',
+                    showactive=False,
+                    buttons=[
+                        dict(
+                            label='Recalculate',
+                            method='relayout',
+                            args=[{'shapes': []}],
+                            clickargs=[{'data': [{'customdata': [[0]]}]}]
+                        )
+                    ]
+                )
+            ]
+        )
+        
+        config_plot = st.plotly_chart(fig, use_container_width=True)
+
+        # Add JavaScript to handle drag and drop events
+        st.markdown("""
+        <script>
+        const graphDiv = document.querySelector('.js-plotly-plot');
+        graphDiv.on('plotly_restyle', function(data) {
+            if (data[0].hasOwnProperty('customdata')) {
+                const source = data[0].customdata[0][0];
+                const target = data[1].customdata[0][0];
+                
+                fetch('/update_config', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({source: source, target: target}),
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        Streamlit.setComponentValue({
+                            config: data.config,
+                            selected_experiments: data.selected_experiments
+                        });
+                    }
+                });
+            }
+        });
+        </script>
+        """, unsafe_allow_html=True)
+
+    with col2:
+        st.subheader("Results Summary")
+        tray_life = min(result["total_tests"] for result in config["results"].values())
+        st.metric("Tray Life (Tests)", tray_life)
+
+        results_df = pd.DataFrame([
+            {
+                "Experiment": f"{result['name']} (#{exp_num})",
+                "Total Tests": result['total_tests']
+            }
+            for exp_num, result in config["results"].items()
+        ])
+        st.dataframe(results_df, use_container_width=True)
+
+    st.subheader("Detailed Results")
+    for exp_num, result in config["results"].items():
+        with st.expander(f"{result['name']} (#{exp_num}) - {result['total_tests']} total tests"):
+            for i, set_info in enumerate(result["sets"]):
+                st.markdown(f"**{'Primary' if i == 0 else 'Additional'} Set {i+1}:**")
+                set_df = pd.DataFrame([
+                    {
+                        "Reagent": placement["reagent_code"],
+                        "Location": f"LOC-{placement['location'] + 1}",
+                        "Tests Possible": placement["tests"]
+                    }
+                    for placement in set_info["placements"]
+                ])
+                st.dataframe(set_df, use_container_width=True)
+                st.markdown(f"**Tests from this set:** {set_info['tests_per_set']}")
+                st.markdown("---")
 
 if __name__ == "__main__":
     main()
