@@ -2,7 +2,6 @@ import streamlit as st
 import pandas as pd
 import plotly.graph_objects as go
 from reagent_optimizer import ReagentOptimizer
-import json
 
 # Set page config
 st.set_page_config(
@@ -166,10 +165,9 @@ def main():
     1. Select experiments using checkboxes or enter numbers manually
     2. Click 'Optimize Configuration'
     3. View the tray visualization and results summary
-    4. Drag and drop boxes to manually adjust the configuration
-    5. Expand detailed results for each experiment
+    4. Expand detailed results for each experiment
     """)
-
+    
 def display_results():
     config = st.session_state.config
     selected_experiments = st.session_state.selected_experiments
