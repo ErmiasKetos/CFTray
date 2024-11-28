@@ -55,8 +55,13 @@ def main():
                 st.error(f"Invalid experiment numbers: {', '.join(map(str, invalid_experiments))}")
                 return
             
-            # Get optimized configuration
-            config = optimizer.optimize_tray_configuration(experiments)
+            # Show optimization progress
+            with st.spinner('Optimizing tray configuration...'):
+                config = optimizer.optimize_tray_configuration(experiments)
+            
+            if not config:
+                st.error("Could not find a valid configuration")
+                return
             
             # Display tray configuration
             st.subheader("Tray Configuration")
@@ -72,14 +77,12 @@ def main():
             # Display results summary
             st.subheader("Results Summary")
             
+            total_tests = 0
             for exp_num, result in config["results"].items():
+                total_tests += result["total_tests"]
                 with st.expander(f"{result['name']} (#{exp_num}) - {result['total_tests']} total tests"):
-                    for i, set_info in enumerate(result["sets"], 1):
-                        if i == 1:
-                            st.markdown("Primary Set:")
-                        else:
-                            st.markdown(f"Additional Set {i-1}:")
-                            
+                    for i, set_info in enumerate(result["sets"]):
+                        st.markdown(f"**Set {i+1}:**")
                         for placement in set_info["placements"]:
                             st.markdown(
                                 f"- {placement['reagent_code']} "
@@ -90,14 +93,12 @@ def main():
                     
                     st.markdown(f"**Total tests possible: {result['total_tests']}**")
             
+            st.metric("Total Tests Across All Experiments", total_tests)
+            
         except ValueError:
             st.error("Please enter valid experiment numbers")
         except Exception as e:
             st.error(f"An error occurred: {str(e)}")
 
 if __name__ == "__main__":
-    st.set_page_config(
-        page_title="Reagent Tray Configurator",
-        layout="wide"
-    )
-    main()
+    st.set_page_config
