@@ -3,6 +3,7 @@ import pandas as pd
 import plotly.graph_objects as go
 from reagent_optimizer import ReagentOptimizer
 import json
+import uuid  # Import UUID for unique key generation
 
 # Set page config
 st.set_page_config(
@@ -118,6 +119,7 @@ def update_config_after_manual_change(config, source, target):
 
     return config
 
+
 def display_results():
     config = st.session_state.config
     selected_experiments = st.session_state.selected_experiments
@@ -128,8 +130,10 @@ def display_results():
         st.subheader("Tray Configuration")
         fig = create_tray_visualization(config)
 
-        # Use a unique key for the plot
-        config_plot = st.plotly_chart(fig, use_container_width=True, key="tray_configuration_plot")
+        # Generate a unique key for the Plotly chart
+        unique_key = f"tray_configuration_plot_{uuid.uuid4().hex}"
+
+        config_plot = st.plotly_chart(fig, use_container_width=True, key=unique_key)
 
         # Add JavaScript to handle drag and drop events
         st.markdown("""
@@ -204,6 +208,11 @@ def display_results():
                 st.markdown(f"**Tests from this set:** {set_info['tests_per_set']}")
                 st.markdown("---")
 
+def reset_app():
+    """Clears all session state variables to reset the app."""
+    for key in st.session_state.keys():
+        del st.session_state[key]  # Remove each session state key
+
 
 
 def main():
@@ -215,7 +224,7 @@ def main():
     # Reset Button
     if st.sidebar.button("Reset All", key="reset_button"):
         reset_app()
-        st.experimental_rerun()
+        st.experimental_rerun()  # Reload the app from scratch
 
     st.sidebar.header("Available Experiments")
     selected_experiments = []
@@ -261,6 +270,7 @@ def main():
     5. Expand detailed results for each experiment
     6. Click 'Reset All' to start fresh
     """)
+
 
 
 if __name__ == "__main__":
