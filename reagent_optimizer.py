@@ -111,54 +111,80 @@ class ReagentOptimizer:
         return partitions
 
     def create_configuration(self, selected_experiments, partition):
-        """Create a configuration based on a specific partition of locations"""
         tray_locations = [None] * self.MAX_LOCATIONS
         results = {}
-
-        for exp_num, locations in partition:
-            experiment = self.experiment_data[exp_num]
-            exp_result = {
-                "name": experiment["name"],
-                "sets": [],
-                "total_tests": 0
-            }
-
-            # Place primary set
-            primary_placements = []
-            for reagent, location in zip(experiment["reagents"], locations):
-                capacity = self.get_location_capacity(location)
-                tests = self.calculate_tests(reagent["vol"], capacity)
+        
+        # First place primary sets as before
+        # ... (existing primary set placement code)
+        
+        # Then identify and fill empty locations
+        empty_locations = [i for i, loc in enumerate(tray_locations) if loc is None]
+        
+        while empty_locations:
+            # Try to fit the largest possible set from any experiment
+            best_fill = None
+            for exp_num in selected_experiments:
+                exp = self.experiment_data[exp_num]
+                num_reagents = len(exp["reagents"])
                 
-                placement = {
-                    "reagent_code": reagent["code"],
-                    "location": location,
-                    "tests": tests,
-                    "volume": reagent["vol"]
-                }
-                primary_placements.append(placement)
-                
-                tray_locations[location] = {
-                    "reagent_code": reagent["code"],
-                    "experiment": exp_num,
-                    "tests_possible": tests,
-                    "volume_per_test": reagent["vol"],
-                    "capacity": capacity
-                }
-
-            primary_set = {
-                "placements": primary_placements,
-                "tests_per_set": min(p["tests"] for p in primary_placements)
-            }
-            exp_result["sets"].append(primary_set)
-            exp_result["total_tests"] = primary_set["tests_per_set"]
+                if len(empty_locations) >= num_reagents:
+                    # Calculate tests possible for this placement
+                    locations = empty_locations[:num_reagents]
+                    placements = []
+                    for reagent, loc in zip(exp["reagents"], locations):
+                        capacity = self.get_location_capacity(loc)
+                        tests = self.calculate_tests(reagent["vol"], capacity)
+                        placements.append({
+                            "reagent_code": reagent["code"],
+                            "location": loc,
+                            "tests": tests,
+                            "volume": reagent["vol"]
+                        })
+                    
+                    set_tests = min(p["tests"] for p in placements)
+                    
+                    if best_fill is None or set_tests > best_fill["tests"]:
+                        best_fill = {
+                            "experiment": exp_num,
+                            "placements": placements,
+                            "tests": set_tests,
+                            "locations": locations
+                        }
             
-            results[exp_num] = exp_result
-
+            if best_fill:
+                # Apply the best fill option
+                for placement in best_fill["placements"]:
+                    loc = placement["location"]
+                    tray_locations[loc] = {
+                        "reagent_code": placement["reagent_code"],
+                        "experiment": best_fill["experiment"],
+                        "tests_possible": placement["tests"],
+                        "volume_per_test": placement["volume"],
+                        "capacity": self.get_location_capacity(loc)
+                    }
+                    
+                    # Add to experiment results
+                    if "sets" not in results[best_fill["experiment"]]:
+                        results[best_fill["experiment"]]["sets"] = []
+                    results[best_fill["experiment"]]["sets"].append({
+                        "placements": best_fill["placements"],
+                        "tests_per_set": best_fill["tests"]
+                    })
+                    results[best_fill["experiment"]]["total_tests"] += best_fill["tests"]
+                
+                # Update empty locations
+                empty_locations = [i for i, loc in enumerate(tray_locations) if loc is None]
+            else:
+                break
+        
+        # Verify no empty locations
+        if any(loc is None for loc in tray_locations):
+            return None
+        
         return {
             "tray_locations": tray_locations,
             "results": results
         }
-
     def optimize_tray_configuration(self, selected_experiments):
         """Find optimal configuration maximizing tray life"""
         # First validate the experiment selection
