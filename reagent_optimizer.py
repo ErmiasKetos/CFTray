@@ -29,7 +29,7 @@ class ReagentOptimizer:
             34: {"name": "Nickel (HR)", "reagents": [{"code": "KR34E1", "vol": 500}, {"code": "KR34E2", "vol": 500}]},
             35: {"name": "Copper (II) (HR)", "reagents": [{"code": "KR35E1", "vol": 1000}, {"code": "KR35E2", "vol": 1000}]},
             36: {"name": "Sulfate", "reagents": [{"code": "KR36E1", "vol": 1000}, {"code": "KR36E2", "vol": 2300}]},
-            40: {"name": "Potassium", "reagents": [{"code": "KR40E", "vol": 1000}, {"code": "KR40S", "vol": 1000}]},
+            40: {"name": "Potassium", "reagents": [{"code": "KR40E1", "vol": 1000}, {"code": "KR40E2", "vol": 1000}]},
             42: {"name": "Aluminum-BB", "reagents": [{"code": "KR42E1", "vol": 1000}, {"code": "KR42E2", "vol": 1000}]}
         }
 
