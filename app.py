@@ -43,13 +43,6 @@ st.markdown("""
         color: #666;
         margin-bottom: 10px;
     }
-    .manual-override {
-        background-color: #f8f9fa;
-        border: 1px solid #ddd;
-        border-radius: 5px;
-        padding: 10px;
-        margin-top: 20px;
-    }
 </style>
 """, unsafe_allow_html=True)
 
@@ -106,7 +99,7 @@ def create_tray_visualization(config):
         )
 
     fig.update_layout(
-        title="Tray Configuration",
+        title="Tray Configuration (Drag and Drop to Modify)",
         showlegend=False,
         height=600,
         width=800,
@@ -188,20 +181,6 @@ def display_results():
         }
         </script>
         """, unsafe_allow_html=True)
-
-        # Manual override section
-        st.markdown('<div class="manual-override">', unsafe_allow_html=True)
-        st.subheader("Manual Override")
-        col1, col2 = st.columns(2)
-        with col1:
-            source = st.selectbox("Select source location", range(1, 17), key="source_select")
-        with col2:
-            target = st.selectbox("Select target location", range(1, 17), key="target_select")
-        if st.button("Swap Locations"):
-            config = update_config_after_manual_change(config, source-1, target-1)
-            st.session_state.config = config
-            st.experimental_rerun()
-        st.markdown('</div>', unsafe_allow_html=True)
 
     with col2:
         st.subheader("Results Summary")
@@ -295,7 +274,7 @@ def main():
     1. Select experiments using checkboxes or enter numbers manually
     2. Click 'Optimize Configuration'
     3. View the tray visualization and results summary
-    4. Use drag-and-drop or manual override to adjust reagent locations
+    4. Click and drag to swap reagent locations
     5. Expand detailed results for each experiment
     6. Click 'Reset All' to start fresh
     """)
