@@ -2,6 +2,7 @@ import streamlit as st
 import pandas as pd
 import plotly.graph_objects as go
 from reagent_optimizer import ReagentOptimizer
+import json
 
 # Set page config
 st.set_page_config(
@@ -100,12 +101,10 @@ def create_tray_visualization(config):
         yaxis=dict(showgrid=False, zeroline=False, showticklabels=False),
         plot_bgcolor="rgba(0,0,0,0)",
         margin=dict(l=20, r=20, t=40, b=20),
-        dragmode='select'  # Changed from 'draggable' to 'select'
+        dragmode='select'
     )
 
     return fig
-
-
 
 def update_config_after_manual_change(config, source, target):
     source_loc = config["tray_locations"][source]
@@ -119,55 +118,6 @@ def update_config_after_manual_change(config, source, target):
 
     return config
 
-def main():
-    st.title("🧪 Reagent Tray Configurator")
-    
-    optimizer = ReagentOptimizer()
-    experiments = optimizer.get_available_experiments()
-
-    st.sidebar.header("Available Experiments")
-    selected_experiments = []
-    for exp in experiments:
-        if st.sidebar.checkbox(f"{exp['id']}: {exp['name']}", key=f"exp_{exp['id']}"):
-            selected_experiments.append(exp['id'])
-
-    st.sidebar.markdown("---")
-    st.sidebar.markdown("Or enter experiment numbers manually:")
-    manual_input = st.sidebar.text_input("Experiment numbers (comma-separated)", placeholder="e.g., 1, 16, 29")
-
-    if manual_input:
-        selected_experiments = [int(num.strip()) for num in manual_input.split(',') if num.strip()]
-
-    if st.sidebar.button("Optimize Configuration", key="optimize_button"):
-        if not selected_experiments:
-            st.sidebar.error("Please select at least one experiment")
-        else:
-            try:
-                with st.spinner("Optimizing tray configuration..."):
-                    config = optimizer.optimize_tray_configuration(selected_experiments)
-
-                st.session_state.config = config
-                st.session_state.selected_experiments = selected_experiments
-
-                display_results()
-
-            except ValueError as e:
-                st.error(str(e))
-            except Exception as e:
-                st.error(f"An error occurred: {str(e)}")
-
-    if 'config' in st.session_state:
-        display_results()
-
-    st.sidebar.markdown("---")
-    st.sidebar.markdown("### How to use")
-    st.sidebar.markdown("""
-    1. Select experiments using checkboxes or enter numbers manually
-    2. Click 'Optimize Configuration'
-    3. View the tray visualization and results summary
-    4. Expand detailed results for each experiment
-    """)
-    
 def display_results():
     config = st.session_state.config
     selected_experiments = st.session_state.selected_experiments
@@ -178,39 +128,30 @@ def display_results():
         st.subheader("Tray Configuration")
         fig = create_tray_visualization(config)
         
-        # Remove the JavaScript callback for drag and drop
-        st.plotly_chart(fig, use_container_width=True)
+        # Add JavaScript callback for drag and drop
+        fig.update_layout(
+            dragmode='draggable',
+            newshape=dict(line_color='cyan'),
+            updatemenus=[
+                dict(
+                    type='buttons',
+                    showactive=False,
+                    buttons=[
+                        dict(
+                            label='Recalculate',
+                            method='relayout',
+                            args=[{'shapes': []}],
+                            clickargs=[{'data': [{'customdata': [[0]]}]}]
+                        )
+                    ]
+                )
+            ]
+        )
+        
+        config_plot = st.plotly_chart(fig, use_container_width=True)
 
-    with col2:
-        st.subheader("Results Summary")
-        tray_life = min(result["total_tests"] for result in config["results"].values())
-        st.metric("Tray Life (Tests)", tray_life)
-
-        results_df = pd.DataFrame([
-            {
-                "Experiment": f"{result['name']} (#{exp_num})",
-                "Total Tests": result['total_tests']
-            }
-            for exp_num, result in config["results"].items()
-        ])
-        st.dataframe(results_df, use_container_width=True)
-
-    st.subheader("Detailed Results")
-    for exp_num, result in config["results"].items():
-        with st.expander(f"{result['name']} (#{exp_num}) - {result['total_tests']} total tests"):
-            for i, set_info in enumerate(result["sets"]):
-                st.markdown(f"**{'Primary' if i == 0 else 'Additional'} Set {i+1}:**")
-                set_df = pd.DataFrame([
-                    {
-                        "Reagent": placement["reagent_code"],
-                        "Location": f"LOC-{placement['location'] + 1}",
-                        "Tests Possible": placement["tests"]
-                    }
-                    for placement in set_info["placements"]
-                ])
-                st.dataframe(set_df, use_container_width=True)
-                st.markdown(f"**Tests from this set:** {set_info['tests_per_set']}")
-                st.markdown("---")
+        # Add JavaScript to handle drag and drop events
+        st.markdown("""
         <script>
         const graphDiv = document.querySelector('.js-plotly-plot');
         graphDiv.on('plotly_restyle', function(data) {
@@ -269,6 +210,55 @@ def display_results():
                 st.dataframe(set_df, use_container_width=True)
                 st.markdown(f"**Tests from this set:** {set_info['tests_per_set']}")
                 st.markdown("---")
+
+def main():
+    st.title("🧪 Reagent Tray Configurator")
+    
+    optimizer = ReagentOptimizer()
+    experiments = optimizer.get_available_experiments()
+
+    st.sidebar.header("Available Experiments")
+    selected_experiments = []
+    for exp in experiments:
+        if st.sidebar.checkbox(f"{exp['id']}: {exp['name']}", key=f"exp_{exp['id']}"):
+            selected_experiments.append(exp['id'])
+
+    st.sidebar.markdown("---")
+    st.sidebar.markdown("Or enter experiment numbers manually:")
+    manual_input = st.sidebar.text_input("Experiment numbers (comma-separated)", placeholder="e.g., 1, 16, 29")
+
+    if manual_input:
+        selected_experiments = [int(num.strip()) for num in manual_input.split(',') if num.strip()]
+
+    if st.sidebar.button("Optimize Configuration", key="optimize_button"):
+        if not selected_experiments:
+            st.sidebar.error("Please select at least one experiment")
+        else:
+            try:
+                with st.spinner("Optimizing tray configuration..."):
+                    config = optimizer.optimize_tray_configuration(selected_experiments)
+
+                st.session_state.config = config
+                st.session_state.selected_experiments = selected_experiments
+
+                display_results()
+
+            except ValueError as e:
+                st.error(str(e))
+            except Exception as e:
+                st.error(f"An error occurred: {str(e)}")
+
+    if 'config' in st.session_state:
+        display_results()
+
+    st.sidebar.markdown("---")
+    st.sidebar.markdown("### How to use")
+    st.sidebar.markdown("""
+    1. Select experiments using checkboxes or enter numbers manually
+    2. Click 'Optimize Configuration'
+    3. View the tray visualization and results summary
+    4. Expand detailed results for each experiment
+    """)
 
 if __name__ == "__main__":
     main()
