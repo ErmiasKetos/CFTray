@@ -81,8 +81,8 @@ class ReagentOptimizer:
         for exp in sorted_experiments:
             self._place_experiment_reagents(exp, config)
 
-        # Second round: Fill empty locations and optimize for total tests
-        self._optimize_empty_locations(sorted_experiments, config)
+        # Second round: Fill empty locations with reagents from the experiment with least tests
+        self._fill_empty_locations(sorted_experiments, config)
 
         # Recalculate total tests based on complete sets
         self._recalculate_total_tests(config)
@@ -120,28 +120,27 @@ class ReagentOptimizer:
                 f"Need {num_reagents} locations, but only {len(available)} available."
             )
 
-    def _optimize_empty_locations(self, experiments, config):
+    def _fill_empty_locations(self, experiments, config):
         empty_locations = [i for i, loc in enumerate(config["tray_locations"]) if loc is None]
         
-        for loc in empty_locations:
-            best_placement = None
-            max_additional_tests = 0
+        while empty_locations:
+            # Find the experiment with the least number of tests
+            exp_with_least_tests = min(
+                experiments,
+                key=lambda x: config["results"][x]["total_tests"] if x in config["results"] else float('inf')
+            )
             
-            for exp in experiments:
-                for reagent in self.experiment_data[exp]["reagents"]:
-                    capacity = self.get_location_capacity(loc)
-                    tests = self.calculate_tests(reagent["vol"], capacity)
-                    
-                    current_tests = config["results"][exp]["total_tests"] if exp in config["results"] else 0
-                    additional_tests = min(tests, current_tests)
-                    
-                    if additional_tests > max_additional_tests:
-                        max_additional_tests = additional_tests
-                        best_placement = (exp, reagent)
+            # Get the reagent that can add the most tests
+            best_reagent = max(
+                self.experiment_data[exp_with_least_tests]["reagents"],
+                key=lambda r: self.calculate_tests(r["vol"], self.get_location_capacity(empty_locations[0]))
+            )
             
-            if best_placement:
-                exp, reagent = best_placement
-                self._place_single_reagent(exp, reagent, loc, config)
+            # Place the reagent
+            self._place_single_reagent(exp_with_least_tests, best_reagent, empty_locations[0], config)
+            
+            # Update empty locations
+            empty_locations = [i for i, loc in enumerate(config["tray_locations"]) if loc is None]
 
     def _place_single_reagent(self, exp_num, reagent, location, config):
         capacity = self.get_location_capacity(location)
@@ -224,7 +223,7 @@ class ReagentOptimizer:
             current_set = []
             for set_info in result["sets"]:
                 current_set.extend(set_info["placements"])
-                if len(current_set) >= num_reagents:
+                while len(current_set) >= num_reagents:
                     placement_sets.append(current_set[:num_reagents])
                     current_set = current_set[num_reagents:]
             
