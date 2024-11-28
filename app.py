@@ -33,8 +33,11 @@ def main():
 
     # Reset logic
     if st.session_state.reset_trigger:
+        # Clear all checkbox states
         for exp in experiments:
-            st.session_state[f"exp_{exp['id']}"] = False
+            if f"exp_{exp['id']}" in st.session_state:
+                st.session_state[f"exp_{exp['id']}"] = False
+        # Clear text input and selected experiments
         st.session_state.experiment_input = ""
         st.session_state.selected_experiments = []
         st.session_state.reset_trigger = False
@@ -61,7 +64,8 @@ def main():
     # Reset Button to Clear Checkboxes and Input Box
     if st.button("Reset Selection"):
         st.session_state.reset_trigger = True
-        st.experimental_rerun()
+        st.session_state.selected_experiments = []
+        st.experimental_update_query_params()  # Triggers a refresh
 
     # Optimize Configuration Button
     if st.button("Optimize Configuration"):
