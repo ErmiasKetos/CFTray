@@ -77,8 +77,7 @@ def create_tray_visualization(config):
             name=f"LOC-{i+1}",
             text=f"LOC-{i+1}<br>{loc['reagent_code'] if loc else 'Empty'}<br>Tests: {loc['tests_possible'] if loc else 'N/A'}<br>Exp: #{loc['experiment'] if loc else 'N/A'}",
             hoverinfo="none",
-            customdata=[i],
-            dragmode='draggable'
+            customdata=[i]
         ))
 
         # Add text annotation
@@ -106,6 +105,7 @@ def create_tray_visualization(config):
     )
 
     return fig
+
 
 def update_config_after_manual_change(config, source, target):
     source_loc = config["tray_locations"][source]
