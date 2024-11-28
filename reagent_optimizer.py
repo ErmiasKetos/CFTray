@@ -197,9 +197,11 @@ class ReagentOptimizer:
                 })
             
             if partial_set:
+                partial_set_tests = min(p["tests"] for p in partial_set)
+                total_tests += partial_set_tests
                 result["sets"].append({
                     "placements": partial_set,
-                    "tests_per_set": 0
+                    "tests_per_set": partial_set_tests
                 })
             
             result["total_tests"] = total_tests
@@ -207,4 +209,6 @@ class ReagentOptimizer:
     def get_available_experiments(self):
         return [{"id": id_, "name": exp["name"]} 
                 for id_, exp in self.experiment_data.items()]
+
+
 
