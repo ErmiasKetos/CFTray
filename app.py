@@ -127,9 +127,9 @@ def display_results():
     with col1:
         st.subheader("Tray Configuration")
         fig = create_tray_visualization(config)
-        
-        # Add a unique key to the plotly_chart element
-        config_plot = st.plotly_chart(fig, use_container_width=True, key="tray_configuration")
+
+        # Use a unique key for the plot
+        config_plot = st.plotly_chart(fig, use_container_width=True, key="tray_configuration_plot")
 
         # Add JavaScript to handle drag and drop events
         st.markdown("""
@@ -203,6 +203,7 @@ def display_results():
                 st.dataframe(set_df, use_container_width=True)
                 st.markdown(f"**Tests from this set:** {set_info['tests_per_set']}")
                 st.markdown("---")
+
 
 def main():
     st.title("🧪 Reagent Tray Configurator")
