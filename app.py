@@ -180,30 +180,39 @@ def display_results():
         st.subheader("Tray Configuration")
         fig = create_tray_visualization(config)
         
-        # Add JavaScript callback for drag and drop
-        fig.update_layout(
-            dragmode='pan',
-            newshape=dict(line_color='cyan'),
-            updatemenus=[
-                dict(
-                    type='buttons',
-                    showactive=False,
-                    buttons=[
-                        dict(
-                            label='Recalculate',
-                            method='relayout',
-                            args=[{'shapes': []}],
-                            clickargs=[{'data': [{'customdata': [[0]]}]}]
-                        )
-                    ]
-                )
-            ]
-        )
-        
-        config_plot = st.plotly_chart(fig, use_container_width=True)
+        # Remove the JavaScript callback for drag and drop
+        st.plotly_chart(fig, use_container_width=True)
 
-        # Add JavaScript to handle drag and drop events
-        st.markdown("""
+    with col2:
+        st.subheader("Results Summary")
+        tray_life = min(result["total_tests"] for result in config["results"].values())
+        st.metric("Tray Life (Tests)", tray_life)
+
+        results_df = pd.DataFrame([
+            {
+                "Experiment": f"{result['name']} (#{exp_num})",
+                "Total Tests": result['total_tests']
+            }
+            for exp_num, result in config["results"].items()
+        ])
+        st.dataframe(results_df, use_container_width=True)
+
+    st.subheader("Detailed Results")
+    for exp_num, result in config["results"].items():
+        with st.expander(f"{result['name']} (#{exp_num}) - {result['total_tests']} total tests"):
+            for i, set_info in enumerate(result["sets"]):
+                st.markdown(f"**{'Primary' if i == 0 else 'Additional'} Set {i+1}:**")
+                set_df = pd.DataFrame([
+                    {
+                        "Reagent": placement["reagent_code"],
+                        "Location": f"LOC-{placement['location'] + 1}",
+                        "Tests Possible": placement["tests"]
+                    }
+                    for placement in set_info["placements"]
+                ])
+                st.dataframe(set_df, use_container_width=True)
+                st.markdown(f"**Tests from this set:** {set_info['tests_per_set']}")
+                st.markdown("---")
         <script>
         const graphDiv = document.querySelector('.js-plotly-plot');
         graphDiv.on('plotly_restyle', function(data) {
