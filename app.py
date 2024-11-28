@@ -39,6 +39,45 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
+def get_experiment_color(experiment_name):
+    color_map = {
+        "Copper (II) (LR)": "gray",
+        "Lead (II) Cadmium (II)": "gray",
+        "Arsenic (III)": "gray",
+        "Nitrates-N (LR)": "gray",
+        "Chromium (VI) (LR)": "gray",
+        "Manganese (II) (LR)": "gray",
+        "Boron (Dissolved)": "violet",
+        "Silica (Dissolved)": "violet",
+        "Free Chlorine": "green",
+        "Total Hardness": "orange",
+        "Total Alkalinity (LR)": "white",
+        "Orthophosphates-P (LR)": "orange",
+        "Mercury (II)": "gray",
+        "Selenium (IV)": "gray",
+        "Zinc (II) (LR)": "gray",
+        "Iron (Dissolved)": "blue",
+        "Residual Chlorine": "green",
+        "Zinc (HR)": "orange",
+        "Manganese  (HR)": "violet",
+        "Orthophosphates-P (HR)": "violet",
+        "Total Alkalinity (HR)": "white",
+        "Fluoride": "orange",
+        "Boron (HR)": "gray",
+        "Molybdenum": "orange",
+        "Nitrates-N (HR)": "green",
+        "Total Ammonia-N": "red",
+        "Chromium (HR)": "blue",
+        "Nitrite-N": "blue",
+        "Nickel (LR)": "blue",
+        "Nickel (HR)": "orange",
+        "Copper (II) (HR)": "yellow",
+        "Sulfate": "violet",
+        "Potassium": "violet",
+        "Aluminum-BB": "orange"
+    }
+    return color_map.get(experiment_name, "lightgray")
+
 def create_tray_visualization(config):
     locations = config["tray_locations"]
     fig = go.Figure()
@@ -46,27 +85,35 @@ def create_tray_visualization(config):
     for i, loc in enumerate(locations):
         row = i // 4
         col = i % 4
-        color = "#1f77b4" if i < 4 else "#2ca02c"
-        opacity = 0.8 if loc else 0.2
+        capacity = "270mL" if i < 4 else "140mL"
+        
+        if loc:
+            experiment_name = next((result["name"] for result in config["results"].values() if result["name"] == loc["experiment"]), "Unknown")
+            color = get_experiment_color(experiment_name)
+            text = f"LOC-{i+1}<br>{loc['reagent_code']}<br>Exp: {loc['experiment']}<br>{loc['tests_possible']} tests<br>{capacity}"
+        else:
+            color = "lightgray"
+            text = f"LOC-{i+1}<br>Empty<br>{capacity}"
 
         fig.add_trace(go.Scatter(
             x=[col, col+1, col+1, col, col],
             y=[row, row, row+1, row+1, row],
             fill="toself",
             fillcolor=color,
-            opacity=opacity,
             line=dict(color="black", width=1),
-            mode="lines",
+            mode="lines+text",
             name=f"LOC-{i+1}",
-            text=f"LOC-{i+1}<br>{loc['reagent_code'] if loc else 'Empty'}" if loc else f"LOC-{i+1}<br>Empty",
-            hoverinfo="text"
+            text=text,
+            textposition="middle center",
+            textfont=dict(size=8, color="black"),
+            hoverinfo="none"
         ))
 
     fig.update_layout(
         title="Tray Configuration",
         showlegend=False,
-        height=400,
-        width=600,
+        height=600,
+        width=800,
         xaxis=dict(showgrid=False, zeroline=False, showticklabels=False),
         yaxis=dict(showgrid=False, zeroline=False, showticklabels=False),
         plot_bgcolor="rgba(0,0,0,0)",
