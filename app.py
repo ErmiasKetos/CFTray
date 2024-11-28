@@ -63,9 +63,9 @@ def main():
 
     # Reset Button to Clear Checkboxes and Input Box
     if st.button("Reset Selection"):
+        # Trigger reset by setting reset_trigger to True
         st.session_state.reset_trigger = True
-        st.session_state.selected_experiments = []
-        st.experimental_update_query_params()  # Triggers a refresh
+        st.experimental_rerun()
 
     # Optimize Configuration Button
     if st.button("Optimize Configuration"):
