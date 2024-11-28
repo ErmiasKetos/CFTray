@@ -77,12 +77,18 @@ def main():
             # Display results summary
             st.subheader("Results Summary")
             
-            total_tests = 0
+            # Find tray life (minimum tests across experiments)
+            tray_life = min(result["total_tests"] for result in config["results"].values())
+            st.metric("Tray Life (Tests)", tray_life)
+            
             for exp_num, result in config["results"].items():
-                total_tests += result["total_tests"]
                 with st.expander(f"{result['name']} (#{exp_num}) - {result['total_tests']} total tests"):
                     for i, set_info in enumerate(result["sets"]):
-                        st.markdown(f"**Set {i+1}:**")
+                        if i == 0:
+                            st.markdown("Primary Set:")
+                        else:
+                            st.markdown(f"Additional Set {i}:")
+                            
                         for placement in set_info["placements"]:
                             st.markdown(
                                 f"- {placement['reagent_code']} "
@@ -90,10 +96,6 @@ def main():
                                 f"{placement['tests']} tests possible"
                             )
                         st.markdown(f"Tests from this set: {set_info['tests_per_set']}")
-                    
-                    st.markdown(f"**Total tests possible: {result['total_tests']}**")
-            
-            st.metric("Total Tests Across All Experiments", total_tests)
             
         except ValueError:
             st.error("Please enter valid experiment numbers")
@@ -107,7 +109,7 @@ if __name__ == "__main__":
         layout="wide",
         initial_sidebar_state="auto",
         menu_items={
-            'About': "# Reagent Tray Configuration Optimizer\nOptimizes reagent placement for maximum test capacity."
+            'About': "# Reagent Tray Configuration Optimizer\nOptimizes reagent placement for maximum tray life."
         }
     )
     main()
