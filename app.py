@@ -5,7 +5,7 @@ from reagent_optimizer import ReagentOptimizer
 
 # Set page config
 st.set_page_config(
-    page_title="Reagent Tray Configurator",
+    page_title="KCTray Configurator",
     page_icon="🧪",
     layout="wide",
     initial_sidebar_state="expanded",
@@ -39,44 +39,21 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-def get_experiment_color(experiment_name):
+def get_reagent_color(reagent_code):
     color_map = {
-        "Copper (II) (LR)": "gray",
-        "Lead (II) Cadmium (II)": "gray",
-        "Arsenic (III)": "gray",
-        "Nitrates-N (LR)": "gray",
-        "Chromium (VI) (LR)": "gray",
-        "Manganese (II) (LR)": "gray",
-        "Boron (Dissolved)": "violet",
-        "Silica (Dissolved)": "violet",
-        "Free Chlorine": "green",
-        "Total Hardness": "orange",
-        "Total Alkalinity (LR)": "white",
-        "Orthophosphates-P (LR)": "orange",
-        "Mercury (II)": "gray",
-        "Selenium (IV)": "gray",
-        "Zinc (II) (LR)": "gray",
-        "Iron (Dissolved)": "blue",
-        "Residual Chlorine": "green",
-        "Zinc (HR)": "orange",
-        "Manganese  (HR)": "violet",
-        "Orthophosphates-P (HR)": "violet",
-        "Total Alkalinity (HR)": "white",
-        "Fluoride": "orange",
-        "Boron (HR)": "gray",
-        "Molybdenum": "orange",
-        "Nitrates-N (HR)": "green",
-        "Total Ammonia-N": "red",
-        "Chromium (HR)": "blue",
-        "Nitrite-N": "blue",
-        "Nickel (LR)": "blue",
-        "Nickel (HR)": "orange",
-        "Copper (II) (HR)": "yellow",
-        "Sulfate": "violet",
-        "Potassium": "violet",
-        "Aluminum-BB": "orange"
+        'gray': ['KR1E', 'KR1S', 'KR2S', 'KR3E', 'KR3S', 'KR4E', 'KR4S', 'KR5E', 'KR5S', 'KR6E1', 'KR6E2', 'KR6E3', 'KR13E1', 'KR13S', 'KR14E', 'KR14S', 'KR15E', 'KR15S'],
+        'violet': ['KR7E1', 'KR7E2', 'KR8E1', 'KR8E2', 'KR19E1', 'KR19E2', 'KR19E3', 'KR20E', 'KR36E1', 'KR36E2', 'KR40E1', 'KR40E2'],
+        'green': ['KR9E1', 'KR9E2', 'KR17E1', 'KR17E2', 'KR17E3', 'KR28E1', 'KR28E2', 'KR28E3'],
+        'orange': ['KR10E1', 'KR10E2', 'KR10E3', 'KR12E1', 'KR12E2', 'KR12E3', 'KR18E1', 'KR18E2', 'KR22E1', 'KR27E1', 'KR27E2', 'KR42E1', 'KR42E2'],
+        'white': ['KR11E', 'KR21E1'],
+        'blue': ['KR16E1', 'KR16E2', 'KR16E3', 'KR16E4', 'KR30E1', 'KR30E2', 'KR30E3', 'KR31E1', 'KR31E2', 'KR34E1', 'KR34E2'],
+        'red': ['KR29E1', 'KR29E2', 'KR29E3'],
+        'yellow': ['KR35E1', 'KR35E2']
     }
-    return color_map.get(experiment_name, "lightgray")
+    for color, reagents in color_map.items():
+        if any(reagent_code.startswith(r) for r in reagents):
+            return color
+    return 'lightgray'  # Default color if not found
 
 def create_tray_visualization(config):
     locations = config["tray_locations"]
@@ -85,29 +62,33 @@ def create_tray_visualization(config):
     for i, loc in enumerate(locations):
         row = i // 4
         col = i % 4
-        capacity = "270mL" if i < 4 else "140mL"
-        
-        if loc:
-            experiment_name = next((result["name"] for result in config["results"].values() if result["name"] == loc["experiment"]), "Unknown")
-            color = get_experiment_color(experiment_name)
-            text = f"LOC-{i+1}<br>{loc['reagent_code']}<br>Exp: {loc['experiment']}<br>{loc['tests_possible']} tests<br>{capacity}"
-        else:
-            color = "lightgray"
-            text = f"LOC-{i+1}<br>Empty<br>{capacity}"
+        color = get_reagent_color(loc['reagent_code']) if loc else 'lightgray'
+        opacity = 0.8 if loc else 0.2
 
         fig.add_trace(go.Scatter(
             x=[col, col+1, col+1, col, col],
             y=[row, row, row+1, row+1, row],
             fill="toself",
             fillcolor=color,
+            opacity=opacity,
             line=dict(color="black", width=1),
-            mode="lines+text",
+            mode="lines",
             name=f"LOC-{i+1}",
-            text=text,
-            textposition="middle center",
-            textfont=dict(size=8, color="black"),
+            text=f"LOC-{i+1}<br>{loc['reagent_code'] if loc else 'Empty'}<br>Tests: {loc['tests_possible'] if loc else 'N/A'}<br>Exp: #{loc['experiment'] if loc else 'N/A'}",
             hoverinfo="none"
         ))
+
+        # Add text annotation
+        fig.add_annotation(
+            x=(col + col + 1) / 2,
+            y=(row + row + 1) / 2,
+            text=f"LOC-{i+1}<br>{loc['reagent_code'] if loc else 'Empty'}<br>Tests: {loc['tests_possible'] if loc else 'N/A'}<br>Exp: #{loc['experiment'] if loc else 'N/A'}",
+            showarrow=False,
+            font=dict(color="black", size=8),
+            align="center",
+            xanchor="center",
+            yanchor="middle"
+        )
 
     fig.update_layout(
         title="Tray Configuration",
@@ -164,7 +145,7 @@ def main():
                     results_df = pd.DataFrame([
                         {
                             "Experiment": f"{result['name']} (#{exp_num})",
-                            "Total Tests": result["total_tests"]
+                            "Total Tests": result['total_tests']
                         }
                         for exp_num, result in config["results"].items()
                     ])
