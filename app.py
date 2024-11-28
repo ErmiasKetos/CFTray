@@ -2,20 +2,19 @@ import streamlit as st
 import pandas as pd
 from reagent_optimizer import ReagentOptimizer
 
-@st.cache_resource
-def get_optimizer():
-    return ReagentOptimizer()
-
 def render_location_card(location, data):
     capacity = "270mL" if location < 4 else "140mL"
-    st.markdown(f"### LOC-{location + 1}")
-    st.markdown(f"**Capacity:** {capacity}")
+    
+    cols = st.columns([2, 1])
+    with cols[0]:
+        st.markdown(f"### LOC-{location + 1}")
+        st.markdown(f"**Capacity:** {capacity}")
     
     if data:
         st.markdown(f"""
         **Reagent:** {data['reagent_code']}  
-        **Tests possible:** {data['tests']}  
-        **Volume per test:** {data['volume']}µL  
+        **Tests possible:** {data['tests_possible']}  
+        **Volume per test:** {data['volume_per_test']}µL  
         **Experiment:** #{data['experiment']}
         """)
     else:
@@ -25,7 +24,7 @@ def render_location_card(location, data):
 def main():
     st.title("Reagent Tray Configurator")
     
-    optimizer = get_optimizer()
+    optimizer = ReagentOptimizer()
     
     # Show available experiments
     st.subheader("Available Experiments")
@@ -42,7 +41,7 @@ def main():
     # Input for experiment selection
     selected_experiments = st.text_input(
         "Enter experiment numbers (comma-separated)",
-        placeholder="e.g., 1, 3, 16, 13"
+        placeholder="e.g., 1, 16"
     )
     
     if st.button("Optimize Configuration"):
@@ -86,14 +85,18 @@ def main():
             # Show details for each experiment
             for exp_num, result in config["results"].items():
                 with st.expander(f"{result['name']} (#{exp_num}) - {result['total_tests']} total tests"):
-                    for set_idx, set_data in enumerate(result["sets"]):
-                        st.markdown(f"**Set {set_idx + 1} - {set_data['tests_possible']} tests possible**")
-                        for reagent in set_data["reagents"]:
-                            st.markdown(
-                                f"- {reagent['reagent_code']} "
-                                f"(LOC-{reagent['location'] + 1}): "
-                                f"{reagent['tests']} tests"
-                            )
+                    for set_info in result["sets"]:
+                        st.markdown(f"""
+                        **Set {set_info['set_number']}:**
+                        - Capacity: {set_info['capacity']}mL
+                        - Tests per set: {set_info['tests_per_set']}
+                        """)
+                        
+                        for placement in set_info["placements"]:
+                            st.markdown(f"""
+                            {placement['reagent_code']} (LOC-{placement['location'] + 1}):
+                            - Tests possible: {placement['tests']}
+                            """)
                     
                     st.markdown(f"**Total tests possible: {result['total_tests']}**")
             
