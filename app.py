@@ -104,20 +104,13 @@ def create_tray_visualization(config):
 
     return fig
 
-def display_results():
-    config = st.session_state.config
-    selected_experiments = st.session_state.selected_experiments
-
+def display_results(config, selected_experiments):
     col1, col2 = st.columns([3, 2])
 
     with col1:
         st.subheader("Tray Configuration")
         fig = create_tray_visualization(config)
-
-        # Generate a unique key for the Plotly chart
-        unique_key = f"tray_configuration_plot_{uuid.uuid4().hex}"
-
-        st.plotly_chart(fig, use_container_width=True, key=unique_key)
+        st.plotly_chart(fig, use_container_width=True)
 
     with col2:
         st.subheader("Results Summary")
@@ -156,20 +149,21 @@ def reset_app():
         del st.session_state[key]
 
 def main():
-    # Clear session state if reset is triggered
-    if "reset_trigger" in st.session_state and st.session_state["reset_trigger"]:
-        reset_app()
-        st.session_state["reset_trigger"] = False  # Clear the trigger
-
     st.title("🧪 Reagent Tray Configurator")
     
+    # Initialize session state
+    if 'config' not in st.session_state:
+        st.session_state.config = None
+    if 'selected_experiments' not in st.session_state:
+        st.session_state.selected_experiments = []
+
     optimizer = ReagentOptimizer()
     experiments = optimizer.get_available_experiments()
 
     # Reset Button
     if st.sidebar.button("Reset All", key="reset_button"):
         reset_app()
-        st.session_state["reset_trigger"] = True  # Set a trigger for clearing everything
+        st.experimental_rerun()
 
     st.sidebar.header("Available Experiments")
     selected_experiments = []
@@ -184,26 +178,24 @@ def main():
     if manual_input:
         selected_experiments = [int(num.strip()) for num in manual_input.split(',') if num.strip()]
 
-    if st.sidebar.button("Optimize Configuration", key="optimize_button"):
+    optimize_button = st.sidebar.button("Optimize Configuration", key="optimize_button")
+
+    if optimize_button:
         if not selected_experiments:
             st.sidebar.error("Please select at least one experiment")
         else:
             try:
                 with st.spinner("Optimizing tray configuration..."):
                     config = optimizer.optimize_tray_configuration(selected_experiments)
-
                 st.session_state.config = config
                 st.session_state.selected_experiments = selected_experiments
-
-                display_results()
-
             except ValueError as e:
                 st.error(str(e))
             except Exception as e:
                 st.error(f"An error occurred: {str(e)}")
 
-    if 'config' in st.session_state:
-        display_results()
+    if st.session_state.config is not None:
+        display_results(st.session_state.config, st.session_state.selected_experiments)
 
     st.sidebar.markdown("---")
     st.sidebar.markdown("### How to use")
