@@ -3,6 +3,21 @@ import pandas as pd
 import plotly.graph_objects as go
 from reagent_optimizer import ReagentOptimizer
 import json
+import threading
+from http.server import HTTPServer
+from api.update_config import handler
+
+def run_server(port=8000):
+    server_address = ('', port)
+    httpd = HTTPServer(server_address, handler)
+    httpd.app = st
+    print(f"Starting server on port {port}")
+    httpd.serve_forever()
+
+# Start the server in a separate thread
+threading.Thread(target=run_server, daemon=True).start()
+
+
 
 # Set page config
 st.set_page_config(
