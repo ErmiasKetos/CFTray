@@ -76,7 +76,7 @@ def create_tray_visualization(config):
             mode="lines",
             name=f"LOC-{i+1}",
             text=f"LOC-{i+1}<br>{loc['reagent_code'] if loc else 'Empty'}<br>Tests: {loc['tests_possible'] if loc else 'N/A'}<br>Exp: #{loc['experiment'] if loc else 'N/A'}",
-            hoverinfo="none",
+            hoverinfo="text",
             customdata=[i]
         ))
 
@@ -93,7 +93,7 @@ def create_tray_visualization(config):
         )
 
     fig.update_layout(
-        title="Tray Configuration (Drag and Drop to Modify)",
+        title="Tray Configuration",
         showlegend=False,
         height=600,
         width=800,
@@ -101,10 +101,11 @@ def create_tray_visualization(config):
         yaxis=dict(showgrid=False, zeroline=False, showticklabels=False),
         plot_bgcolor="rgba(0,0,0,0)",
         margin=dict(l=20, r=20, t=40, b=20),
-        dragmode='draggable'
+        dragmode='select'  # Changed from 'draggable' to 'select'
     )
 
     return fig
+
 
 
 def update_config_after_manual_change(config, source, target):
