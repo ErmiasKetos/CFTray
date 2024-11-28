@@ -1,200 +1,79 @@
-from collections import defaultdict
+import streamlit as st
+from reagent_optimizer import ReagentOptimizer
 
-class ReagentOptimizer:
-    def __init__(self):
-        self.experiment_data = {
-            1: {"name": "Copper (II) (LR)", "reagents": [{"code": "KR1E", "vol": 850}, {"code": "KR1S", "vol": 300}]},
-            2: {"name": "Lead (II) Cadmium (II)", "reagents": [{"code": "KR1E", "vol": 850}, {"code": "KR2S", "vol": 400}]},
-            3: {"name": "Arsenic (III)", "reagents": [{"code": "KR3E", "vol": 850}, {"code": "KR3S", "vol": 400}]},
-            18: {"name": "Zinc (HR)", "reagents": [{"code": "KR18E1", "vol": 1000}, {"code": "KR18E2", "vol": 1000}]},
-            29: {"name": "Total Ammonia-N", "reagents": [{"code": "KR29E1", "vol": 850}, {"code": "KR29E2", "vol": 850}, {"code": "KR29E3", "vol": 850}]},
-            34: {"name": "Nickel (HR)", "reagents": [{"code": "KR34E1", "vol": 500}, {"code": "KR34E2", "vol": 500}]},
-            35: {"name": "Copper (II) (HR)", "reagents": [{"code": "KR35E1", "vol": 1000}, {"code": "KR35E2", "vol": 1000}]}
+def render_location_card(location, data):
+    capacity = "270mL" if location < 4 else "140mL"
+    st.markdown(f"### LOC-{location + 1}")
+    st.markdown(f"**Capacity:** {capacity}")
+    if data:
+        st.markdown(f"""
+        **Reagent:** {data['reagent_code']}  
+        **Tests possible:** {data['tests_possible']}  
+        **Volume per test:** {data['volume_per_test']}µL  
+        **Experiment:** #{data['experiment']}
+        """)
+    else:
+        st.markdown("*Empty*")
+    st.markdown("---")
+
+def main():
+    st.title("Reagent Tray Configurator")
+    optimizer = ReagentOptimizer()
+    st.subheader("Available Experiments")
+    experiments = optimizer.get_available_experiments()
+    for exp in experiments:
+        st.text(f"{exp['id']}: {exp['name']}")
+
+    selected_experiments = st.text_input("Enter experiment numbers (comma-separated)", placeholder="e.g., 1, 16")
+    if st.button("Optimize Configuration"):
+        if not selected_experiments:
+            st.error("Please enter experiment numbers")
+            return
+        try:
+            experiments = [int(num.strip()) for num in selected_experiments.split(',') if num.strip()]
+            config = optimizer.optimize_tray_configuration(experiments)
+            st.subheader("Tray Configuration")
+            for row in range(4):
+                cols = st.columns(4)
+                for col in range(4):
+                    location = row * 4 + col
+                    with cols[col]:
+                        render_location_card(location, config["tray_locations"][location])
+
+            st.subheader("Results Summary")
+            tray_life = min(result["total_tests"] for result in config["results"].values())
+            for exp_num, result in config["results"].items():
+                with st.expander(f"{result['name']} (#{exp_num}) - {result['total_tests']} total tests"):
+                    for i, set_info in enumerate(result["sets"]):
+                        if i == 0:
+                            st.markdown("Primary Set:")
+                        else:
+                            st.markdown(f"Additional Set {i + 1}:")
+
+                        for placement in set_info["placements"]:
+                            st.markdown(
+                                f"- {placement['reagent_code']} "
+                                f"(LOC-{placement['location'] + 1}): "
+                                f"{placement['tests']} tests possible"
+                            )
+                        st.markdown(f"Tests from this set: {set_info['tests_per_set']}")
+
+            st.metric("Tray Life (Tests)", tray_life)
+
+        except ValueError as e:
+            st.error(str(e))
+        except Exception as e:
+            st.error(f"An error occurred: {str(e)}")
+
+if __name__ == "__main__":
+    st.set_page_config(
+        page_title="Reagent Tray Configurator",
+        page_icon="🧪",
+        layout="wide",
+        initial_sidebar_state="auto",
+        menu_items={
+            'About': "# Reagent Tray Configuration Optimizer\nOptimizes reagent placement for maximum tray life."
         }
-        self.MAX_LOCATIONS = 16
-
-    def calculate_tests(self, volume_ul, capacity_ml):
-        return int((capacity_ml * 1000) / volume_ul)
-
-    def get_location_capacity(self, location):
-        return 270 if location < 4 else 140
-
-    def optimize_tray_configuration(self, selected_experiments):
-        for exp in selected_experiments:
-            if exp not in self.experiment_data:
-                raise ValueError(f"Invalid experiment number: {exp}")
-
-        total_reagents = sum(len(self.experiment_data[exp]["reagents"]) for exp in selected_experiments)
-        if total_reagents > self.MAX_LOCATIONS:
-            details = [f"{self.experiment_data[exp]['name']}: {len(self.experiment_data[exp]['reagents'])} reagents" 
-                      for exp in selected_experiments]
-            raise ValueError(
-                f"Total reagents needed ({total_reagents}) exceeds available locations ({self.MAX_LOCATIONS}).\n"
-                f"Experiment requirements:\n" + "\n".join(details)
-            )
-
-        config = {
-            "tray_locations": [None] * self.MAX_LOCATIONS,
-            "results": {},
-            "available_locations": set(range(self.MAX_LOCATIONS))
-        }
-
-        sorted_experiments = sorted(
-            selected_experiments,
-            key=lambda x: (
-                len(self.experiment_data[x]["reagents"]),
-                max(r["vol"] for r in self.experiment_data[x]["reagents"])
-            ),
-            reverse=True
-        )
-
-        for exp in sorted_experiments:
-            self._place_experiment_reagents(exp, config)
-
-        self._fill_empty_locations(sorted_experiments, config)
-        self._recalculate_total_tests(config)
-
-        return config
-
-    def _place_experiment_reagents(self, exp, config):
-        exp_data = self.experiment_data[exp]
-        num_reagents = len(exp_data["reagents"])
-        
-        if any(r["vol"] > 800 for r in exp_data["reagents"]):
-            available_270 = [loc for loc in range(4) if loc in config["available_locations"]]
-            if len(available_270) >= num_reagents:
-                self._place_reagent_set(exp, available_270[:num_reagents], config)
-                return
-
-        available_locs = sorted(config["available_locations"])
-        for i in range(len(available_locs) - num_reagents + 1):
-            locations = available_locs[i:i + num_reagents]
-            if all(self.get_location_capacity(loc) >= min(r["vol"] for r in exp_data["reagents"]) / 5 
-                  for loc in locations):
-                self._place_reagent_set(exp, locations, config)
-                return
-        
-        available = sorted(config["available_locations"], 
-                           key=lambda x: self.get_location_capacity(x), reverse=True)
-        if len(available) >= num_reagents:
-            self._place_reagent_set(exp, available[:num_reagents], config)
-        else:
-            raise ValueError(
-                f"Could not place experiment {exp} ({exp_data['name']}). "
-                f"Need {num_reagents} locations, but only {len(available)} available."
-            )
-
-    def _fill_empty_locations(self, experiments, config):
-        empty_locations = [i for i, loc in enumerate(config["tray_locations"]) if loc is None]
-        
-        while empty_locations:
-            exp_with_least_tests = min(
-                experiments,
-                key=lambda x: config["results"][x]["total_tests"] if x in config["results"] else float('inf')
-            )
-            
-            best_reagent = max(
-                self.experiment_data[exp_with_least_tests]["reagents"],
-                key=lambda r: self.calculate_tests(r["vol"], self.get_location_capacity(empty_locations[0]))
-            )
-            
-            self._place_single_reagent(exp_with_least_tests, best_reagent, empty_locations[0], config)
-            empty_locations = [i for i, loc in enumerate(config["tray_locations"]) if loc is None]
-
-    def _place_single_reagent(self, exp_num, reagent, location, config):
-        capacity = self.get_location_capacity(location)
-        tests = self.calculate_tests(reagent["vol"], capacity)
-        
-        config["tray_locations"][location] = {
-            "reagent_code": reagent["code"],
-            "experiment": exp_num,
-            "tests_possible": tests,
-            "volume_per_test": reagent["vol"],
-            "capacity": capacity
-        }
-        
-        if exp_num not in config["results"]:
-            config["results"][exp_num] = {
-                "name": self.experiment_data[exp_num]["name"],
-                "placements": [],
-                "total_tests": 0
-            }
-        
-        config["results"][exp_num]["placements"].append({
-            "reagent_code": reagent["code"],
-            "location": location,
-            "tests": tests,
-            "volume": reagent["vol"]
-        })
-        config["available_locations"].remove(location)
-
-    def _place_reagent_set(self, exp_num, locations, config):
-        exp = self.experiment_data[exp_num]
-        sorted_reagents = sorted(exp["reagents"], key=lambda r: r["vol"], reverse=True)
-
-        for i, reagent in enumerate(sorted_reagents):
-            loc = locations[i]
-            self._place_single_reagent(exp_num, reagent, loc, config)
-
-    def _recalculate_total_tests(self, config):
-        for exp_num, result in config["results"].items():
-            exp_data = self.experiment_data[exp_num]
-            num_reagents = len(exp_data["reagents"])
-            
-            reagent_placements = defaultdict(list)
-            for placement in result["placements"]:
-                reagent_placements[placement["reagent_code"]].append(placement)
-            
-            complete_sets = []
-            remaining_placements = []
-            
-            # Form complete sets
-            while all(len(placements) > 0 for placements in reagent_placements.values()):
-                current_set = []
-                for reagent in exp_data["reagents"]:
-                    if reagent_placements[reagent["code"]]:
-                        current_set.append(reagent_placements[reagent["code"]].pop(0))
-                complete_sets.append(current_set)
-            
-            # Collect remaining placements
-            for placements in reagent_placements.values():
-                remaining_placements.extend(placements)
-            
-            result["sets"] = []
-            total_tests = 0
-            
-            # Process complete sets
-            for i, set_placements in enumerate(complete_sets):
-                set_tests = min(p["tests"] for p in set_placements)
-                total_tests += set_tests
-                result["sets"].append({
-                    "placements": set_placements,
-                    "tests_per_set": set_tests
-                })
-            
-            # Process remaining placements as additional sets
-            while remaining_placements:
-                additional_set = []
-                for reagent in exp_data["reagents"]:
-                    matching_placement = next((p for p in remaining_placements if p["reagent_code"] == reagent["code"]), None)
-                    if matching_placement:
-                        additional_set.append(matching_placement)
-                        remaining_placements.remove(matching_placement)
-                    else:
-                        # If a reagent is missing, use the one with the least tests from complete sets
-                        least_tests_placement = min((p for set_info in result["sets"] for p in set_info["placements"] if p["reagent_code"] == reagent["code"]), key=lambda x: x["tests"])
-                        additional_set.append(least_tests_placement)
-                
-                set_tests = min(p["tests"] for p in additional_set)
-                total_tests += set_tests
-                result["sets"].append({
-                    "placements": additional_set,
-                    "tests_per_set": set_tests
-                })
-            
-            result["total_tests"] = total_tests
-
-    def get_available_experiments(self):
-        return [{"id": id_, "name": exp["name"]} 
-                for id_, exp in self.experiment_data.items()]
+    )
+    main()
 
