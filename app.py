@@ -7,7 +7,7 @@ import uuid
 
 # Set page config
 st.set_page_config(
-    page_title="Reagent Tray Configurator",
+    page_title="KCTray Configurator",
     page_icon="🧪",
     layout="wide",
     initial_sidebar_state="expanded",
