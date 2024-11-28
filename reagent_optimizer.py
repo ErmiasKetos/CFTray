@@ -40,24 +40,96 @@ class ReagentOptimizer:
     def calculate_tests(self, volume_ul, capacity_ml):
         return int((capacity_ml * 1000) / volume_ul)
 
-    def calculate_total_tests(self, exp_num, placements):
-        """Calculate total tests possible for an experiment given its placements"""
-        reagent_tests = {}
-        for placement in placements:
-            code = placement["reagent_code"]
-            if code not in reagent_tests:
-                reagent_tests[code] = 0
-            reagent_tests[code] += placement["tests"]
-        return min(reagent_tests.values())
+    def get_location_capacity(self, location):
+        return 270 if location < 4 else 140
 
-    def place_reagent_set(self, exp_num, locations, config):
-        """Place a set of reagents in specified locations"""
+    def optimize_tray_configuration(self, selected_experiments):
+        # Validate experiments exist
+        for exp in selected_experiments:
+            if exp not in self.experiment_data:
+                raise ValueError(f"Invalid experiment number: {exp}")
+
+        # Calculate total reagents needed
+        total_reagents = sum(len(self.experiment_data[exp]["reagents"]) for exp in selected_experiments)
+        if total_reagents > self.MAX_LOCATIONS:
+            details = [f"{self.experiment_data[exp]['name']}: {len(self.experiment_data[exp]['reagents'])} reagents" 
+                      for exp in selected_experiments]
+            raise ValueError(
+                f"Total reagents needed ({total_reagents}) exceeds available locations ({self.MAX_LOCATIONS}).\n"
+                f"Experiment requirements:\n" + "\n".join(details)
+            )
+
+        # Initialize configuration
+        config = {
+            "tray_locations": [None] * self.MAX_LOCATIONS,
+            "results": {},
+            "available_locations": set(range(self.MAX_LOCATIONS))
+        }
+
+        # Sort experiments by volume requirements and number of reagents
+        sorted_experiments = sorted(
+            selected_experiments,
+            key=lambda x: (
+                len(self.experiment_data[x]["reagents"]),
+                max(r["vol"] for r in self.experiment_data[x]["reagents"])
+            ),
+            reverse=True
+        )
+
+        # First pass: Place high-volume reagents in 270mL locations
+        high_vol_placed = set()
+        for exp in sorted_experiments:
+            exp_data = self.experiment_data[exp]
+            if any(r["vol"] > 800 for r in exp_data["reagents"]):
+                available_270 = [loc for loc in range(4) if loc in config["available_locations"]]
+                if len(available_270) >= len(exp_data["reagents"]):
+                    self._place_reagent_set(exp, available_270[:len(exp_data["reagents"])], config)
+                    high_vol_placed.add(exp)
+
+        # Second pass: Place remaining experiments
+        remaining_experiments = [exp for exp in sorted_experiments if exp not in high_vol_placed]
+        for exp in remaining_experiments:
+            exp_data = self.experiment_data[exp]
+            num_reagents = len(exp_data["reagents"])
+            
+            # Try to find consecutive locations
+            available_locs = sorted(config["available_locations"])
+            placed = False
+            
+            for i in range(len(available_locs) - num_reagents + 1):
+                locations = available_locs[i:i + num_reagents]
+                # Check if all locations have sufficient capacity
+                if all(self.get_location_capacity(loc) >= min(r["vol"] for r in exp_data["reagents"]) / 5 
+                      for loc in locations):
+                    self._place_reagent_set(exp, locations, config)
+                    placed = True
+                    break
+            
+            if not placed:
+                # If we couldn't place consecutively, try non-consecutive placement
+                available = sorted(config["available_locations"])
+                if len(available) >= num_reagents:
+                    self._place_reagent_set(exp, available[:num_reagents], config)
+                else:
+                    raise ValueError(
+                        f"Could not place experiment {exp} ({exp_data['name']}). "
+                        f"Need {num_reagents} locations, but only {len(available)} available."
+                    )
+
+        # Verify all locations are filled
+        empty_locations = [i for i, loc in enumerate(config["tray_locations"]) if loc is None]
+        if empty_locations:
+            raise ValueError(f"Could not fill locations: {empty_locations}")
+
+        return config
+
+    def _place_reagent_set(self, exp_num, locations, config):
         exp = self.experiment_data[exp_num]
         placements = []
-        
+
         for i, reagent in enumerate(exp["reagents"]):
             loc = locations[i]
-            capacity = 270 if loc < 4 else 140
+            capacity = self.get_location_capacity(loc)
             tests = self.calculate_tests(reagent["vol"], capacity)
             
             placement = {
@@ -91,103 +163,6 @@ class ReagentOptimizer:
             "tests_per_set": set_tests
         })
         config["results"][exp_num]["total_tests"] += set_tests
-        
-        return set_tests
-
-    def optimize_tray_configuration(self, selected_experiments):
-        try:
-            # Validate total chambers needed
-            total_chambers = sum(len(self.experiment_data[exp]["reagents"]) for exp in selected_experiments)
-            if total_chambers > self.MAX_LOCATIONS:
-                details = [
-                    f"{self.experiment_data[exp]['name']}: {len(self.experiment_data[exp]['reagents'])} chambers" 
-                    for exp in selected_experiments
-                ]
-                raise ValueError(
-                    f"Configuration cannot be made. Total required chambers: {total_chambers}\n"
-                    f"Available chambers: {self.MAX_LOCATIONS}\n\n"
-                    f"Chamber requirements:\n" + "\n".join(details) + "\n\n"
-                    f"Please remove some experiments from the list."
-                )
-
-            # Initialize configuration
-            config = {
-                "tray_locations": [None] * self.MAX_LOCATIONS,
-                "results": {},
-                "available_locations": set(range(self.MAX_LOCATIONS))
-            }
-
-            # Phase 1: Place initial sets for all experiments
-            # Sort by volume requirements
-            sorted_experiments = sorted(
-                selected_experiments,
-                key=lambda x: max(r["vol"] for r in self.experiment_data[x]["reagents"]),
-                reverse=True
-            )
-
-            # Place first sets
-            for exp_num in sorted_experiments:
-                exp = self.experiment_data[exp_num]
-                num_reagents = len(exp["reagents"])
-                
-                # Try 270mL locations first for high-volume reagents
-                if max(r["vol"] for r in exp["reagents"]) > 800:
-                    available_270 = [loc for loc in config["available_locations"] if loc < 4]
-                    if len(available_270) >= num_reagents:
-                        locations = sorted(available_270[:num_reagents])
-                        self.place_reagent_set(exp_num, locations, config)
-                        continue
-                
-                # Otherwise use available 140mL locations
-                available_140 = [loc for loc in config["available_locations"] if loc >= 4]
-                if len(available_140) >= num_reagents:
-                    locations = sorted(available_140[:num_reagents])
-                    self.place_reagent_set(exp_num, locations, config)
-                else:
-                    raise ValueError(f"Cannot place initial set for experiment {exp_num}")
-
-            # Phase 2: Balance and maximize minimum tests
-            while config["available_locations"]:
-                # Calculate current tests for each experiment
-                exp_tests = {
-                    exp_num: config["results"][exp_num]["total_tests"]
-                    for exp_num in sorted_experiments
-                }
-                
-                # Find experiment with minimum tests
-                min_exp = min(exp_tests.items(), key=lambda x: x[1])[0]
-                min_tests = exp_tests[min_exp]
-                
-                # Try to add set for experiment with minimum tests
-                exp = self.experiment_data[min_exp]
-                num_reagents = len(exp["reagents"])
-                
-                if len(config["available_locations"]) >= num_reagents:
-                    available = sorted(list(config["available_locations"]))
-                    locations = available[:num_reagents]
-                    added_tests = self.place_reagent_set(min_exp, locations, config)
-                    
-                    # If adding this set didn't improve balance, try next experiment
-                    if added_tests < min_tests / 2:
-                        # Try other experiments
-                        for other_exp in sorted_experiments:
-                            if other_exp != min_exp:
-                                num_reagents = len(self.experiment_data[other_exp]["reagents"])
-                                if len(config["available_locations"]) >= num_reagents:
-                                    locations = sorted(list(config["available_locations"]))[:num_reagents]
-                                    self.place_reagent_set(other_exp, locations, config)
-                                    break
-                else:
-                    break
-
-            # Verify no empty locations
-            if any(loc is None for loc in config["tray_locations"]):
-                raise ValueError("Could not fill all locations")
-
-            return config
-
-        except Exception as e:
-            raise ValueError(str(e))
 
     def get_available_experiments(self):
         return [{"id": id_, "name": exp["name"]} 
