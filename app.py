@@ -84,7 +84,7 @@ def create_tray_visualization(config):
             y=(row + row + 1) / 2,
             text=f"LOC-{i+1}<br>{loc['reagent_code'] if loc else 'Empty'}<br>Tests: {loc['tests_possible'] if loc else 'N/A'}<br>Exp: #{loc['experiment'] if loc else 'N/A'}",
             showarrow=False,
-            font=dict(color="black", size=8),
+            font=dict(color="black", size=14),
             align="center",
             xanchor="center",
             yanchor="middle"
