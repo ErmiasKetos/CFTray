@@ -101,4 +101,13 @@ def main():
             st.error(f"An error occurred: {str(e)}")
 
 if __name__ == "__main__":
-    st.set_page_config
+    st.set_page_config(
+        page_title="Reagent Tray Configurator",
+        page_icon="🧪",
+        layout="wide",
+        initial_sidebar_state="auto",
+        menu_items={
+            'About': "# Reagent Tray Configuration Optimizer\nOptimizes reagent placement for maximum test capacity."
+        }
+    )
+    main()
