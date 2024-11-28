@@ -224,7 +224,7 @@ def main():
         reset_app()
         st.session_state["reset_trigger"] = False  # Clear the trigger
 
-    st.title("🧪 Reagent Tray Configurator")
+    st.title("🧪 KFTray Configurator")
     
     optimizer = ReagentOptimizer()
     experiments = optimizer.get_available_experiments()
