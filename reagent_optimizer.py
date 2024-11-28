@@ -37,6 +37,7 @@ class ReagentOptimizer:
 
         self.MAX_LOCATIONS = 16
 
+
     def calculate_tests(self, volume_ul, capacity_ml):
         return int((capacity_ml * 1000) / volume_ul)
 
@@ -70,8 +71,8 @@ class ReagentOptimizer:
         sorted_experiments = sorted(
             selected_experiments,
             key=lambda x: (
-                max(r["vol"] for r in self.experiment_data[x]["reagents"]),
-                len(self.experiment_data[x]["reagents"])
+                len(self.experiment_data[x]["reagents"]),
+                max(r["vol"] for r in self.experiment_data[x]["reagents"])
             ),
             reverse=True
         )
@@ -168,8 +169,9 @@ class ReagentOptimizer:
                 "tests": tests,
                 "volume": reagent["vol"]
             }],
-            "tests_per_set": tests
+            "tests_per_set": 0  # This will be updated in _recalculate_total_tests
         })
+        config["available_locations"].remove(location)
 
     def _place_reagent_set(self, exp_num, locations, config):
         exp = self.experiment_data[exp_num]
@@ -200,8 +202,6 @@ class ReagentOptimizer:
             }
             config["available_locations"].remove(loc)
 
-        set_tests = min(p["tests"] for p in placements)
-        
         if exp_num not in config["results"]:
             config["results"][exp_num] = {
                 "name": exp["name"],
@@ -211,7 +211,7 @@ class ReagentOptimizer:
         
         config["results"][exp_num]["sets"].append({
             "placements": placements,
-            "tests_per_set": set_tests
+            "tests_per_set": 0  # This will be updated in _recalculate_total_tests
         })
 
     def _recalculate_total_tests(self, config):
@@ -221,20 +221,24 @@ class ReagentOptimizer:
             
             # Group placements by set
             placement_sets = []
+            current_set = []
             for set_info in result["sets"]:
-                if len(set_info["placements"]) == num_reagents:
-                    placement_sets.append(set_info["placements"])
-                else:
-                    # Handle partial sets
-                    for placement in set_info["placements"]:
-                        placement_sets.append([placement])
+                current_set.extend(set_info["placements"])
+                if len(current_set) >= num_reagents:
+                    placement_sets.append(current_set[:num_reagents])
+                    current_set = current_set[num_reagents:]
             
             # Calculate total tests based on complete sets
             total_tests = 0
             for placements in placement_sets:
-                if len(placements) == num_reagents:
-                    set_tests = min(p["tests"] for p in placements)
-                    total_tests += set_tests
+                set_tests = min(p["tests"] for p in placements)
+                total_tests += set_tests
+                
+                # Update tests_per_set for each set
+                for set_info in result["sets"]:
+                    if all(p in set_info["placements"] for p in placements):
+                        set_info["tests_per_set"] = set_tests
+                        break
             
             result["total_tests"] = total_tests
 
