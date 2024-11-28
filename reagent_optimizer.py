@@ -1,3 +1,5 @@
+from collections import defaultdict
+
 class ReagentOptimizer:
     def __init__(self):
         self.experiment_data = {
