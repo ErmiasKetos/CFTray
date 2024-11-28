@@ -182,7 +182,7 @@ def display_results():
         
         # Add JavaScript callback for drag and drop
         fig.update_layout(
-            dragmode='draggable',
+            dragmode='pan',
             newshape=dict(line_color='cyan'),
             updatemenus=[
                 dict(
