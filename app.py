@@ -23,12 +23,21 @@ def main():
     # Initialize session state for selected experiments
     if "selected_experiments" not in st.session_state:
         st.session_state.selected_experiments = []
-
     if "experiment_input" not in st.session_state:
         st.session_state.experiment_input = ""
+    if "reset_trigger" not in st.session_state:
+        st.session_state.reset_trigger = False
 
     st.subheader("Available Experiments")
     experiments = optimizer.get_available_experiments()
+
+    # Reset logic
+    if st.session_state.reset_trigger:
+        for exp in experiments:
+            st.session_state[f"exp_{exp['id']}"] = False
+        st.session_state.experiment_input = ""
+        st.session_state.selected_experiments = []
+        st.session_state.reset_trigger = False
 
     # Checkbox list for experiments
     selected_experiments = []
@@ -51,12 +60,7 @@ def main():
 
     # Reset Button to Clear Checkboxes and Input Box
     if st.button("Reset Selection"):
-        # Clear all checkboxes
-        for exp in experiments:
-            st.session_state[f"exp_{exp['id']}"] = False
-        # Clear text input
-        st.session_state.experiment_input = ""
-        st.session_state.selected_experiments = []
+        st.session_state.reset_trigger = True
         st.experimental_rerun()
 
     # Optimize Configuration Button
