@@ -3,7 +3,7 @@ import pandas as pd
 import plotly.graph_objects as go
 from reagent_optimizer import ReagentOptimizer
 import json
-import uuid  # Import UUID for unique key generation
+import uuid
 
 # Set page config
 st.set_page_config(
@@ -37,6 +37,18 @@ st.markdown("""
     }
     .css-1d391kg {
         padding-top: 3rem;
+    }
+    .drag-instruction {
+        font-style: italic;
+        color: #666;
+        margin-bottom: 10px;
+    }
+    .manual-override {
+        background-color: #f8f9fa;
+        border: 1px solid #ddd;
+        border-radius: 5px;
+        padding: 10px;
+        margin-top: 20px;
     }
 </style>
 """, unsafe_allow_html=True)
@@ -94,7 +106,7 @@ def create_tray_visualization(config):
         )
 
     fig.update_layout(
-        title="Tray Configuration (Drag and Drop to Modify)",
+        title="Tray Configuration",
         showlegend=False,
         height=600,
         width=800,
@@ -119,7 +131,6 @@ def update_config_after_manual_change(config, source, target):
 
     return config
 
-
 def display_results():
     config = st.session_state.config
     selected_experiments = st.session_state.selected_experiments
@@ -128,6 +139,7 @@ def display_results():
 
     with col1:
         st.subheader("Tray Configuration")
+        st.markdown('<p class="drag-instruction">Click and drag to swap reagent locations</p>', unsafe_allow_html=True)
         fig = create_tray_visualization(config)
 
         # Generate a unique key for the Plotly chart
@@ -177,6 +189,20 @@ def display_results():
         </script>
         """, unsafe_allow_html=True)
 
+        # Manual override section
+        st.markdown('<div class="manual-override">', unsafe_allow_html=True)
+        st.subheader("Manual Override")
+        col1, col2 = st.columns(2)
+        with col1:
+            source = st.selectbox("Select source location", range(1, 17), key="source_select")
+        with col2:
+            target = st.selectbox("Select target location", range(1, 17), key="target_select")
+        if st.button("Swap Locations"):
+            config = update_config_after_manual_change(config, source-1, target-1)
+            st.session_state.config = config
+            st.experimental_rerun()
+        st.markdown('</div>', unsafe_allow_html=True)
+
     with col2:
         st.subheader("Results Summary")
         tray_life = min(result["total_tests"] for result in config["results"].values())
@@ -213,7 +239,6 @@ def reset_app():
     for key in list(st.session_state.keys()):  # Convert to list to avoid runtime error
         del st.session_state[key]
 
-
 def main():
     # Clear session state if reset is triggered
     if "reset_trigger" in st.session_state and st.session_state["reset_trigger"]:
@@ -229,7 +254,6 @@ def main():
     if st.sidebar.button("Reset All", key="reset_button"):
         reset_app()
         st.session_state["reset_trigger"] = True  # Set a trigger for clearing everything
-
 
     st.sidebar.header("Available Experiments")
     selected_experiments = []
@@ -271,12 +295,10 @@ def main():
     1. Select experiments using checkboxes or enter numbers manually
     2. Click 'Optimize Configuration'
     3. View the tray visualization and results summary
-    4. Click and drag to swap reagent locations
+    4. Use drag-and-drop or manual override to adjust reagent locations
     5. Expand detailed results for each experiment
     6. Click 'Reset All' to start fresh
     """)
-
-
 
 if __name__ == "__main__":
     main()
