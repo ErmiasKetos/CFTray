@@ -2,7 +2,6 @@ import streamlit as st
 import pandas as pd
 import plotly.graph_objects as go
 from reagent_optimizer import ReagentOptimizer
-import uuid
 
 # Set page config
 st.set_page_config(
@@ -145,8 +144,11 @@ def display_results(config, selected_experiments):
 
 def reset_app():
     """Clears all session state variables to reset the app."""
-    for key in list(st.session_state.keys()):  # Convert to list to avoid runtime error
-        del st.session_state[key]
+    for key in list(st.session_state.keys()):
+        if key.startswith('exp_'):
+            st.session_state[key] = False
+        else:
+            del st.session_state[key]
 
 def main():
     st.title("🧪 Reagent Tray Configurator")
@@ -163,7 +165,7 @@ def main():
     # Reset Button
     if st.sidebar.button("Reset All", key="reset_button"):
         reset_app()
-        st.experimental_rerun()
+        st.rerun()
 
     st.sidebar.header("Available Experiments")
     selected_experiments = []
