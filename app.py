@@ -18,6 +18,31 @@ def render_location_card(location, data):
         st.markdown("*Empty*")
     st.markdown("---")
 
+def validate_experiment_numbers(input_string, available_ids):
+    """Validate and parse experiment numbers from input string"""
+    if not input_string.strip():
+        return None, "Please enter experiment numbers"
+    
+    try:
+        # Split input and remove empty strings
+        numbers = [num.strip() for num in input_string.split(',') if num.strip()]
+        # Convert to integers
+        experiments = [int(num) for num in numbers]
+        
+        # Check for valid experiment numbers
+        invalid = [num for num in experiments if num not in available_ids]
+        if invalid:
+            return None, f"Invalid experiment numbers: {', '.join(map(str, invalid))}"
+        
+        # Check for duplicates
+        if len(experiments) != len(set(experiments)):
+            return None, "Please enter each experiment number only once"
+        
+        return experiments, None
+        
+    except ValueError:
+        return None, "Please enter valid numbers separated by commas"
+
 def main():
     st.title("Reagent Tray Configurator")
     
@@ -26,8 +51,12 @@ def main():
     # Show available experiments
     st.subheader("Available Experiments")
     experiments = optimizer.get_available_experiments()
+    available_ids = [exp["id"] for exp in experiments]
+    
+    # Display available experiments in a more readable format
+    st.markdown("Select from the following experiments:")
     for exp in experiments:
-        st.text(f"{exp['id']}: {exp['name']}")
+        st.text(f"#{exp['id']}: {exp['name']}")
     
     # Input for experiment selection
     selected_experiments = st.text_input(
@@ -36,25 +65,14 @@ def main():
     )
     
     if st.button("Optimize Configuration"):
-        if not selected_experiments:
-            st.error("Please enter experiment numbers")
-            return
+        # Validate input
+        experiments, error = validate_experiment_numbers(selected_experiments, available_ids)
         
+        if error:
+            st.error(error)
+            return
+            
         try:
-            experiments = [
-                int(num.strip()) 
-                for num in selected_experiments.split(',') 
-                if num.strip()
-            ]
-            
-            # Validate input
-            available_ids = [exp["id"] for exp in optimizer.get_available_experiments()]
-            invalid_experiments = [exp for exp in experiments if exp not in available_ids]
-            
-            if invalid_experiments:
-                st.error(f"Invalid experiment numbers: {', '.join(map(str, invalid_experiments))}")
-                return
-            
             # Show optimization progress
             with st.spinner('Optimizing tray configuration...'):
                 config = optimizer.optimize_tray_configuration(experiments)
@@ -77,12 +95,18 @@ def main():
             # Display results summary
             st.subheader("Results Summary")
             
-            total_tests = 0
+            # Find tray life (minimum tests across experiments)
+            tray_life = min(result["total_tests"] for result in config["results"].values())
+            st.metric("Tray Life (Tests)", tray_life)
+            
             for exp_num, result in config["results"].items():
-                total_tests += result["total_tests"]
                 with st.expander(f"{result['name']} (#{exp_num}) - {result['total_tests']} total tests"):
                     for i, set_info in enumerate(result["sets"]):
-                        st.markdown(f"**Set {i+1}:**")
+                        if i == 0:
+                            st.markdown("Primary Set:")
+                        else:
+                            st.markdown(f"Additional Set {i}:")
+                            
                         for placement in set_info["placements"]:
                             st.markdown(
                                 f"- {placement['reagent_code']} "
@@ -90,13 +114,7 @@ def main():
                                 f"{placement['tests']} tests possible"
                             )
                         st.markdown(f"Tests from this set: {set_info['tests_per_set']}")
-                    
-                    st.markdown(f"**Total tests possible: {result['total_tests']}**")
             
-            st.metric("Total Tests Across All Experiments", total_tests)
-            
-        except ValueError:
-            st.error("Please enter valid experiment numbers")
         except Exception as e:
             st.error(f"An error occurred: {str(e)}")
 
