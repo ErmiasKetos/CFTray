@@ -173,9 +173,8 @@ class ReagentOptimizer:
                 reagent_placements[placement["reagent_code"]].append(placement)
             
             complete_sets = []
-            remaining_placements = []
+            partial_set = []
             
-            # Form complete sets
             while all(len(placements) > 0 for placements in reagent_placements.values()):
                 current_set = []
                 for reagent in exp_data["reagents"]:
@@ -183,14 +182,12 @@ class ReagentOptimizer:
                         current_set.append(reagent_placements[reagent["code"]].pop(0))
                 complete_sets.append(current_set)
             
-            # Collect remaining placements
             for placements in reagent_placements.values():
-                remaining_placements.extend(placements)
+                partial_set.extend(placements)
             
             result["sets"] = []
             total_tests = 0
             
-            # Process complete sets
             for i, set_placements in enumerate(complete_sets):
                 set_tests = min(p["tests"] for p in set_placements)
                 total_tests += set_tests
@@ -199,24 +196,10 @@ class ReagentOptimizer:
                     "tests_per_set": set_tests
                 })
             
-            # Process remaining placements as additional sets
-            while remaining_placements:
-                additional_set = []
-                for reagent in exp_data["reagents"]:
-                    matching_placement = next((p for p in remaining_placements if p["reagent_code"] == reagent["code"]), None)
-                    if matching_placement:
-                        additional_set.append(matching_placement)
-                        remaining_placements.remove(matching_placement)
-                    else:
-                        # If a reagent is missing, use the one with the least tests from complete sets
-                        least_tests_placement = min((p for set_info in result["sets"] for p in set_info["placements"] if p["reagent_code"] == reagent["code"]), key=lambda x: x["tests"])
-                        additional_set.append(least_tests_placement)
-                
-                set_tests = min(p["tests"] for p in additional_set)
-                total_tests += set_tests
+            if partial_set:
                 result["sets"].append({
-                    "placements": additional_set,
-                    "tests_per_set": set_tests
+                    "placements": partial_set,
+                    "tests_per_set": 0
                 })
             
             result["total_tests"] = total_tests
