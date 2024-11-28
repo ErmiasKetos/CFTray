@@ -83,22 +83,19 @@ def main():
             # Display results summary
             st.subheader("Results Summary")
             
-            # Calculate total tests across all experiments
-            total_tests = sum(result["total_tests"] for result in config["results"].values())
-            st.metric("Total Tests Possible (All Experiments)", total_tests)
-            
             # Show details for each experiment
             for exp_num, result in config["results"].items():
-                with st.expander(f"{result['name']} (#{exp_num}) - {result['total_tests']} tests"):
-                    for placement in result["reagent_placements"]:
-                        st.markdown(f"**{placement['reagent_code']}** - Total tests: {placement['total_tests']}")
-                        for loc in placement["placements"]:
+                with st.expander(f"{result['name']} (#{exp_num}) - {result['total_tests']} total tests"):
+                    for set_idx, set_data in enumerate(result["sets"]):
+                        st.markdown(f"**Set {set_idx + 1} - {set_data['tests_possible']} tests possible**")
+                        for reagent in set_data["reagents"]:
                             st.markdown(
-                                f"- LOC-{loc['location'] + 1} "
-                                f"({loc['capacity']}mL): {loc['tests']} tests"
+                                f"- {reagent['reagent_code']} "
+                                f"(LOC-{reagent['location'] + 1}): "
+                                f"{reagent['tests']} tests"
                             )
                     
-                    st.markdown(f"**Maximum tests possible:** {result['total_tests']}")
+                    st.markdown(f"**Total tests possible: {result['total_tests']}**")
             
         except ValueError:
             st.error("Please enter valid experiment numbers")
