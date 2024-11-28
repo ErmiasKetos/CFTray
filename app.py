@@ -19,19 +19,30 @@ def render_location_card(location, data):
 def main():
     st.title("Reagent Tray Configurator")
     optimizer = ReagentOptimizer()
+
     st.subheader("Available Experiments")
     experiments = optimizer.get_available_experiments()
-    for exp in experiments:
-        st.text(f"{exp['id']}: {exp['name']}")
 
-    selected_experiments = st.text_input("Enter experiment numbers (comma-separated)", placeholder="e.g., 1, 16")
+    # Checkbox list for experiments
+    selected_experiments = []
+    for exp in experiments:
+        if st.checkbox(f"{exp['id']}: {exp['name']}"):
+            selected_experiments.append(exp['id'])
+
+    st.text_input("Or enter experiment numbers (comma-separated)", 
+                  placeholder="e.g., 1, 16",
+                  key="experiment_input",
+                  on_change=lambda: selected_experiments.extend(
+                      [int(num.strip()) for num in st.session_state.experiment_input.split(',') if num.strip()]
+                  ))
+
     if st.button("Optimize Configuration"):
         if not selected_experiments:
-            st.error("Please enter experiment numbers")
+            st.error("Please select or enter experiment numbers")
             return
+
         try:
-            experiments = [int(num.strip()) for num in selected_experiments.split(',') if num.strip()]
-            config = optimizer.optimize_tray_configuration(experiments)
+            config = optimizer.optimize_tray_configuration(selected_experiments)
             st.subheader("Tray Configuration")
             for row in range(4):
                 cols = st.columns(4)
@@ -45,11 +56,8 @@ def main():
             for exp_num, result in config["results"].items():
                 with st.expander(f"{result['name']} (#{exp_num}) - {result['total_tests']} total tests"):
                     for i, set_info in enumerate(result["sets"]):
-                        if i == 0:
-                            st.markdown("Primary Set:")
-                        else:
-                            st.markdown(f"Additional Set {i                        }:")
-
+                        set_label = "Primary Set:" if i == 0 else f"Additional Set {i}:"
+                        st.markdown(set_label)
                         for placement in set_info["placements"]:
                             st.markdown(
                                 f"- {placement['reagent_code']} "
@@ -76,4 +84,3 @@ if __name__ == "__main__":
         }
     )
     main()
-
