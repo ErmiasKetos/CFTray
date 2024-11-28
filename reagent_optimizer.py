@@ -241,3 +241,4 @@ class ReagentOptimizer:
     def get_available_experiments(self):
         return [{"id": id_, "name": exp["name"]} 
                 for id_, exp in self.experiment_data.items()]
+
